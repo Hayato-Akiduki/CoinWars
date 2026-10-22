@@ -140,6 +140,8 @@ body::before{ /* 菱形の地紋 */
 @keyframes glow{to{opacity:1}}
 .its{position:absolute;top:4px;right:4px;display:flex;flex-direction:column;gap:2px}
 .its i{font-style:normal;font-size:10px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#000a;border:1px solid var(--line2)}
+.its i.rm{cursor:pointer;border-color:var(--gold)}.its i.rm:hover{background:#ffd27a55;box-shadow:0 0 6px var(--gold)}
+.its i.lock{opacity:.55}
 .bars{position:absolute;left:7%;right:7%;bottom:7%;display:flex;flex-direction:column;gap:2px}
 .cell.fighting .nm{display:none}
 .cell.fighting .portrait{inset:10% 0 22%}
@@ -420,6 +422,7 @@ const ODDS=[ // レベルごとのコスト1〜5の出現率(%)
   [30,40,25,5,0],[16,28,35,18,3],[12,18,32,28,10],[8,12,25,32,23]];
 const EXP_NEED=[0,2,4,6,10,20,30,40,56,0]; // 次レベルまで
 const MAX_LV=9, MAX_ROUND=20, INV_MAX=10;
+const UNEQUIP_WAIT=2;                  // 装備してから外せるようになるまでのラウンド数
 const EVENT_ROUNDS=[2,5,8,11,14,17];   // このラウンドの準備前にイベント
 const STRONG_ROUNDS=[5,10,15,20];      // 強敵ラウンド
 const LOAN={gold:25,rounds:5,pay:6};
@@ -544,9 +547,10 @@ function merge(key){
     if(locs.length>=3){
       const [a,ai]=locs[0],its=[];
       S.sel=null; // 合成でマスの中身が変わるので選択を解除
-      locs.slice(0,3).forEach(([w,i])=>{its.push(...S[w][i].items);S[w][i]=null});
-      S[a][ai]=mk(key,star+1,its.slice(0,3));
-      returnItems(its.slice(3));
+      locs.slice(0,3).forEach(([w,i])=>{const u=S[w][i];u.items.forEach((k,j)=>its.push([k,eqRound(u,j)]));S[w][i]=null});
+      const nu=mk(key,star+1,its.slice(0,3).map(x=>x[0]));nu.eq=its.slice(0,3).map(x=>x[1]); // 装備ラウンドも引き継ぐ
+      S[a][ai]=nu;
+      returnItems(its.slice(3).map(x=>x[0]));
       log(`${UNITS[key].name} が ★${star+1} に昇格！`);sfx('merge');
       banner(`★${star+1}`,`${UNITS[key].name} 昇格！`,'win',900);
     }
@@ -562,8 +566,27 @@ function sellSel(){if(S.sel)sellAt(...S.sel)}
 function equip(idx,w,i){
   const u=S[w][i];if(!u)return false;
   if(u.items.length>=3){tip('このキャラはもうアイテムを持てない（最大3個）');return false}
-  const k=S.items.splice(idx,1)[0];u.items.push(k);S.selItem=null;
+  const k=S.items.splice(idx,1)[0];
+  u.eq=u.items.map((_,j)=>eqRound(u,j));u.items.push(k);u.eq.push(S.round);S.selItem=null;
   log(`${UNITS[u.key].name} に ${ITEMS[k].name} を装備`);render();return true;
+}
+// ===== アイテムの取り外し（装備から UNEQUIP_WAIT ラウンド後の準備中から外せる） =====
+// u.eq[j] は u.items[j] を装備したラウンド。記録がない（古いセーブなど）ものはすぐ外せる扱い
+const eqRound=(u,j)=>u.eq&&u.eq[j]!=null?u.eq[j]:0;
+const unequipWait=(u,j)=>Math.max(0,eqRound(u,j)+UNEQUIP_WAIT-S.round); // 外せるまでの残りラウンド
+function unequip(w,i,j){
+  const u=S[w][i];if(!u||S.phase!=='plan'||j<0||j>=u.items.length)return false;
+  const n=unequipWait(u,j);
+  if(n>0){tip(`${ITEMS[u.items[j]].icon} ${ITEMS[u.items[j]].name} はあと${n}ラウンドで外せる`);return false}
+  if(S.items.length>=INV_MAX){tip(`アイテム欄がいっぱい（${INV_MAX}個）で外せない`);return false}
+  const k=u.items.splice(j,1)[0];u.eq=u.items.map((_,x)=>eqRound(u,x>=j?x+1:x));
+  S.items.push(k);S.sel=null;sfx('coin');
+  log(`${UNITS[u.key].name} から ${ITEMS[k].name} を外した`);render();return true;
+}
+function unequipLast(w,i){ // キーボード用：外せるもののうち最後に付けたものを外す
+  const u=S[w][i];if(!u||!u.items.length)return;
+  for(let j=u.items.length-1;j>=0;j--)if(!unequipWait(u,j))return unequip(w,i,j);
+  unequip(w,i,u.items.length-1); // 外せるものがなければ残りラウンドを案内
 }
 function moveUnit(sw,si,w,i){ // 入れ替え（空きマスなら移動）
   S.sel=null;
@@ -791,7 +814,10 @@ function banner(title,sub,cls,ms){
 function iconHTML(key){return IMG[key]?`<img src="img/${key}.png" alt="">`:UNITS[key].icon}
 function unitHTML(u,f){
   const d=UNITS[u.key];
-  let s=`<div class="stars s${u.star}">${'★'.repeat(u.star)}</div><div class="its">${u.items.map(k=>`<i>${ITEMS[k].icon}</i>`).join('')}</div>
+  const own=!f&&S.phase==='plan'&&(S.board.includes(u)||S.bench.includes(u)); // 準備中の自軍だけアイコンから外せる
+  const its=u.items.map((k,j)=>{if(!own)return `<i>${ITEMS[k].icon}</i>`;const n=unequipWait(u,j);
+    return `<i class="${n?'lock':'rm'}" data-unequip="${j}" title="${ITEMS[k].name}：${n?`あと${n}ラウンドで外せる`:'クリックで外す'}">${ITEMS[k].icon}</i>`}).join('');
+  let s=`<div class="stars s${u.star}">${'★'.repeat(u.star)}</div><div class="its">${its}</div>
     <div class="portrait">${iconHTML(u.key)}</div><div class="nm">${d.name}</div>`;
   if(f)s+=`<div class="bars"><div class="bar"><i style="width:${100*f.hp/f.maxHp}%"></i><b style="width:${Math.min(100,100*f.shield/f.maxHp)}%"></b></div><div class="ebar"><i style="width:${100*f.energy/f.need}%"></i></div></div>`;
   return s;
@@ -909,7 +935,7 @@ function line(a,b,skill,color){ // 攻撃者→対象の光線
 }
 
 // ===== ツールチップ =====
-function ttUnit(key,star,items,f,foot){
+function ttUnit(key,star,items,f,foot,u){ // u を渡すと装備アイテムの取り外し状況も出す
   const d=UNITS[key],m=STAR_MULT[star],cnt=traitCounts(S.board,true);
   const hp=f?`${Math.round(f.hp)}<small style="display:inline"> / ${Math.round(f.maxHp)}</small>`:Math.round(d.hp*m);
   return `<div class="tth c${d.cost}"><span class="tti">${iconHTML(key)}</span><div><b>${d.name}</b>
@@ -917,7 +943,8 @@ function ttUnit(key,star,items,f,foot){
     <div class="ttstats"><div><small>HP</small><b>${hp}</b></div><div><small>攻撃</small><b>${Math.round(f?f.atk:d.atk*m)}</b></div><div><small>速度</small><b>${Math.round(f?f.spd:d.spd)}</b></div></div>
     <div class="tttr">${d.traits.map(t=>`<span class="${traitLevel(t,cnt[t]||0)?'on':''}">${TRAITS[t].icon} ${TRAITS[t].name}</span>`).join('')}</div>
     <div class="ttsk"><b>スキル</b>（${f?f.need:3}回行動ごと）<br>${SKILL_TXT[d.skill]}</div>
-    ${items.length?`<div class="ttit">${items.map(k=>`<div>${ITEMS[k].icon} <b>${ITEMS[k].name}</b>　${ITEMS[k].desc}</div>`).join('')}</div>`:''}
+    ${items.length?`<div class="ttit">${items.map((k,j)=>{const n=u?unequipWait(u,j):null;
+      return `<div>${ITEMS[k].icon} <b>${ITEMS[k].name}</b>　${ITEMS[k].desc}${n==null?'':n?`<small>（あと${n}Rで外せる）</small>`:'<small style="color:var(--gold)">（外せる）</small>'}</div>`}).join('')}</div>`:''}
     ${foot?`<div class="ttfoot">${foot}</div>`:''}`;
 }
 function ttFor(el){
@@ -933,8 +960,9 @@ function ttFor(el){
   const fid=c.dataset.fid,side=fid?fid[0]:'p',i=fid?+fid.slice(1):+c.dataset.i;
   const u=c.dataset.w?S[c.dataset.w][i]:S.enemy[i];if(!u)return null;
   const f=bt&&fid?B[side][i]:null;
-  const foot=side==='e'?'敵ユニット':bt?'':`売却 <b>+${sellValue(u)}🪙</b>　／　ドラッグで移動・ショップへドラッグで売却`;
-  return ttUnit(u.key,u.star,u.items,f,foot);
+  const foot=side==='e'?'敵ユニット':bt?'':`売却 <b>+${sellValue(u)}🪙</b>　／　ドラッグで移動・ショップへドラッグで売却`+
+    (u.items.length?`<br>アイテムは装備の${UNEQUIP_WAIT}ラウンド後から、アイコンのクリック（U キー）で外せる`:'');
+  return ttUnit(u.key,u.star,u.items,f,foot,side==='e'||bt?null:u);
 }
 let ttEl=null;
 function hideTT(){$('tt').classList.remove('on');ttEl=null}
@@ -1004,7 +1032,11 @@ document.addEventListener('click',e=>{
   if(suppressClick)return;
   const sh=e.target.closest('[data-shop]');if(sh)return buy(+sh.dataset.shop);
   const it=e.target.closest('[data-item]');if(it)return clickItem(+it.dataset.item);
-  const c=e.target.closest('[data-w]');if(c)return clickSlot(c.dataset.w,+c.dataset.i);
+  const c=e.target.closest('[data-w]');
+  // 何も選んでいない時に装備アイコンを押したら取り外し（選択中は通常どおり移動・装備を優先）
+  const ue=e.target.closest('[data-unequip]');
+  if(c&&ue&&!S.sel&&S.selItem===null)return unequip(c.dataset.w,+c.dataset.i,+ue.dataset.unequip);
+  if(c)return clickSlot(c.dataset.w,+c.dataset.i);
 });
 $('reroll').onclick=()=>{if(S.phase==='plan'&&S.gold>=2){S.gold-=2;rollShop();sfx('reroll');render()}};
 $('buyexp').onclick=()=>{if(S.phase==='plan'&&S.gold>=4&&S.level<MAX_LV){S.gold-=4;addExp(4);sfx('skill');render()}};
@@ -1046,6 +1078,7 @@ document.addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(k.startsWith('arrow')){if(S.phase==='plan'){e.preventDefault();moveCursor(k)}return} // 矢印は押しっぱなしで連続移動できる
   if(e.repeat)return;
   if(k==='d')$('reroll').click();if(k==='f')$('buyexp').click();if(k==='e')sellSel();if(k==='m')toggleMute();if(k==='i')cycleItem();
+  if(k==='u'&&S.phase==='plan'){const p=K.on?[K.w,K.i]:S.sel;if(p)unequipLast(...p)} // カーソル（なければ選択中）のユニットから外す
   if(k>='1'&&k<='5')buy(+k-1);
   if(k==='enter'&&K.on){e.preventDefault();clickSlot(K.w,K.i)}
   if(k===' '){e.preventDefault();document.activeElement?.blur?.();startBattle()} // フォーカス中のボタンが押されないよう外す
