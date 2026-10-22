@@ -25,6 +25,8 @@ endBattle=function(res){
   return _endBattle(res);
 };
 gameOver=function(win){S.phase='over';if(REC)REC.cleared=win};
+const _rollShop=rollShop; // ショップに5コストが並んだ回数を数える
+rollShop=function(){_rollShop();if(REC)REC.seen5+=S.shop.filter(k=>k&&UNITS[k].cost===5).length};
 
 // ---- ボットの戦略 ----
 const STD_LV=[0,1,2,3,3,4,4,5,5,6,6,6,7,7,7,8,8,8,9,9,9]; // ラウンドごとの目標レベル
@@ -127,7 +129,7 @@ showEvent=function(){
 // ---- 1ゲーム ----
 function playGame(){
   newGame();__T.q.length=0;__T.iv.clear();
-  REC={res:[],hp:[],gold:[],lv:[],me:[],en:[],rolls:0,events:[],cleared:false};
+  REC={res:[],hp:[],gold:[],lv:[],me:[],en:[],rolls:0,seen5:0,events:[],cleared:false};
   while(S.phase!=='over'){
     if(S.phase==='event')showEvent();
     plan();
@@ -146,7 +148,7 @@ function playGame(){
 
 function boardStats(board){
   const us=board.filter(Boolean);
-  return {n:us.length,star:avg(us.map(u=>u.star)),s3:us.filter(u=>u.star===3).length,cost:avg(us.map(u=>UNITS[u.key].cost)),
+  return {n:us.length,c4:us.filter(u=>UNITS[u.key].cost===4).length,c5:us.filter(u=>UNITS[u.key].cost===5).length,star:avg(us.map(u=>u.star)),s3:us.filter(u=>u.star===3).length,cost:avg(us.map(u=>UNITS[u.key].cost)),
     items:us.reduce((s,u)=>s+u.items.length,0),pow:us.reduce((s,u)=>s+power(u),0)};
 }
 
@@ -224,6 +226,10 @@ h+=`<h2>イベントを選んだゲームの成績（標準戦略・イベント
 h+='<h2>ユニットの強さ（同コスト帯の4対4ランダムチーム戦で、そのユニットを含むチームの勝率）</h2>'+table(['ユニット','コスト','スキル','チーム勝率','戦闘1回あたり与ダメ(★2, ボット戦)'],
   Object.keys(UNITS).map(k=>{const t=TEAM[k],d=UNIT_DMG[k+'★2'];
     return [UNITS[k].name,UNITS[k].cost,UNITS[k].skill,pct(t.w/t.n)+` <small>(${t.n})</small>`,d?Math.round(d.dealt/d.n)+` <small>(${d.n})</small>`:'-']}));
+// 高コストの登場（標準戦略）
+h+=`<h2>高コストユニットの登場（標準戦略、1ゲームでショップに並んだ5コスト ${f1(avg(RESULT.strats.standard.map(x=>x.seen5)))} 回）</h2>`+table(['R','平均レベル','Lv8以上','4コスト(盤面平均)','5コストが盤面にいる割合'],
+  rounds.slice(9).map(r=>{const g=RESULT.strats.standard.filter(x=>x.me[r]);
+    return [r,f1(avg(g.map(x=>x.lv[r]))),pct(avg(g.map(x=>x.lv[r]>=8?1:0))),f1(avg(g.map(x=>x.me[r].c4))),pct(avg(g.map(x=>x.me[r].c5?1:0)))]}));
 // 敵と自軍の戦力の推移（標準戦略）
 const sg=RESULT.strats.standard;
 h+='<h2>ラウンド開始時の自軍と敵の比較（標準戦略、平均）</h2>'+table(['R','自軍 体数','自軍 平均★','自軍 ★3','自軍 戦力','敵 体数','敵 平均★','敵 ★3','敵 平均コスト','敵 アイテム','敵 戦力'],
