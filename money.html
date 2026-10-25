@@ -6,16 +6,17 @@
 <title>コイン・ウォーズ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg0:#07060f;--panel:rgba(22,18,42,.94);--panel2:rgba(40,34,72,.85);
-  --line:rgba(255,214,140,.14);--line2:rgba(255,214,140,.32);
-  --text:#f3eefe;--dim:#9d97bf;--dim2:#6d6894;
-  --gold:#ffd27a;--gold2:#f5a524;--red:#ff5d73;--green:#4fe3a4;--blue:#62b6ff;
-  --c1:#a3abc0;--c2:#3ccf8e;--c3:#3b9cff;--c4:#b26bff;--c5:#ffb547;
-  --disp:"Cinzel","Noto Sans JP",serif;
-}
+  /* 紫〜藍のネオンを基調にしたSF調。金色はコインと★だけに使う */
+  --bg0:#0a0624;--panel:rgba(28,18,78,.78);--panel2:rgba(48,32,120,.7);
+  --line:rgba(176,150,255,.2);--line2:rgba(196,178,255,.45);
+  --text:#f5f2ff;--dim:#aaa2dc;--dim2:#7771ad;
+  --acc:#c4b2ff;--acc2:#7d5cff;--cyan:#72e8ff;
+  --gold:#ffd27a;--gold2:#f5a524;--red:#ff5d8a;--green:#4fe3a4;--blue:#72c8ff;
+  --c1:#a9b3cc;--c2:#3fd69a;--c3:#4aa8ff;--c4:#b77bff;--c5:#ffbe55;
+  --disp:"Rajdhani","Noto Sans JP",sans-serif;}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
@@ -173,11 +174,22 @@ body::before{ /* 菱形の地紋 */
 .benchwrap .ttl{margin-bottom:8px}
 .bench{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:7px;max-width:600px;margin:0 auto}
 .bench .cell{aspect-ratio:1/1}
-/* PC: 1画面に収める（盤面サイズを画面の高さから決める） */
+/* PC: 画面の高さぴったりに収め、ページはスクロールさせない。
+   中央の盤面は残った高さから大きさを決め、左右の列はそれぞれの中でだけスクロールする */
 @media(min-width:761px){
-  .field,.rowhint{max-width:clamp(250px,calc((100vh - 515px) * .92),500px)}
-  .left,.right{max-height:calc(100vh - 280px);overflow-y:auto;scrollbar-width:thin}
+  #app{height:100vh;height:100dvh;min-height:600px;display:flex;flex-direction:column}
+  .hud,.dock{flex:none}
+  .layout{flex:1;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  .left,.right{min-height:0;overflow-y:auto;scrollbar-width:thin}
+  .center{min-height:0;display:flex}
+  .arena{flex:1;min-height:0;display:flex;flex-direction:column}
+  .fieldwrap{flex:1;min-height:0;container-type:size;display:flex;align-items:center;justify-content:center}
+  /* 盤面の高さ ≒ 幅×1.25（4:5のカード）＋70px（VS・余白）なので、使える高さから幅を逆算する */
+  .field{width:min(100cqw,520px,calc((100cqh - 72px) * .8));max-width:none;margin:0}
+  .rowhint{width:min(100%,520px)}
+  .dock{position:relative}
 }
+@media(min-width:761px) and (max-width:1080px){.layout{grid-template-rows:minmax(0,1fr) minmax(0,1fr)}}
 /* 高さが低い画面（1280×720など）向けの詰めたレイアウト */
 @media(min-width:761px) and (max-height:820px){
   #app{padding-top:8px}.hud{padding:6px 16px}.logo b{font-size:18px}.goldpill b{font-size:20px}.goldpill .coin{width:22px;height:22px}
@@ -185,8 +197,6 @@ body::before{ /* 菱形の地紋 */
   .benchwrap{margin-top:6px;padding-top:6px}.benchwrap .ttl{display:none}.bench{max-width:440px}
   .dock{margin-top:8px;padding:8px 16px 10px}.card{min-height:92px;padding:5px 5px 4px}.card .portrait{font-size:24px;height:30px}
   .lvnum{width:40px;height:44px;font-size:19px}button.fight{padding:8px}
-  .field{max-width:clamp(200px,calc((100vh - 400px) * .92),500px)}
-  .left,.right{max-height:calc(100vh - 200px)}
 }
 .bench .nm{font-size:9.5px}
 .inv{display:flex;gap:6px;flex-wrap:wrap;min-height:34px}
@@ -237,7 +247,11 @@ body.dragging .shopwrap.drop::after{border-color:var(--gold);color:var(--gold);b
 .dock{position:sticky;bottom:0;z-index:6;margin:14px -16px 0;padding:12px 16px 14px;
   background:linear-gradient(180deg,#0f0c22,#08071a);border-top:1px solid var(--line2);box-shadow:0 -10px 30px #0008;
   display:grid;grid-template-columns:200px minmax(0,1fr) 210px;gap:14px;align-items:stretch}
-@media(max-width:1080px){.dock{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.shopwrap{grid-column:1/3;grid-row:1}}
+@media(max-width:1080px){ /* 狭いPC画面でもショップを1段に収めて、盤面の高さを確保する */
+  .dock{grid-template-columns:150px minmax(0,1fr) 168px;gap:10px}.shop{gap:7px}
+  .hud{gap:8px 12px}.track{min-width:150px}.hpbox{min-width:100px}.logo b{font-size:20px}
+  .hudbtns button{padding:5px 8px;font-size:11px}.goldpill small{display:none}
+  .acts button{padding:6px 6px;font-size:11px}button.fight{font-size:16px;letter-spacing:.2em}}
 @media(max-width:760px){.dock{position:relative;grid-template-columns:minmax(0,1fr)}.shopwrap{grid-column:1}}
 .lvbox{display:flex;flex-direction:column;justify-content:space-between;gap:8px}
 .lvrow{display:flex;align-items:center;gap:10px}
@@ -334,6 +348,175 @@ button.fight:not(:disabled)::after{animation:breathe 2s ease-in-out infinite;wil
 #banner.info b{color:#fff;text-shadow:0 0 16px #62b6ff}
 @keyframes bannerIn{0%{opacity:0;transform:scaleY(.2)}12%{opacity:1;transform:scaleY(1)}80%{opacity:1}100%{opacity:0}}
 @media(max-width:560px){#banner b{font-size:32px}}
+
+/* =====================================================================
+   SF・ネオン調テーマ（崩壊スターレイル「マネーウォーズ」風）
+   紫〜藍のグラデーション背景、ガラス板の盤面、縦長カード、角飾りの枠
+   ===================================================================== */
+body{background:
+    radial-gradient(ellipse 90% 55% at 50% -12%,#5a36d6 0%,transparent 62%),
+    radial-gradient(ellipse 70% 45% at 50% 112%,#3a1fa8 0%,transparent 62%),
+    radial-gradient(circle at 8% 45%,#2a1680 0%,transparent 38%),
+    radial-gradient(circle at 92% 60%,#24137a 0%,transparent 36%),
+    var(--bg0)}
+body::before{ /* 細いグリッドと散らばる三角形 */
+  opacity:1;background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640'%3E%3Cg fill='none' stroke='%23b9a4ff' stroke-opacity='.35'%3E%3Cpath d='M60 90l14 24H46z'/%3E%3Cpath d='M520 60l9 15h-18z'/%3E%3Cpath d='M380 300l12 20h-24z'/%3E%3Cpath d='M120 470l8 14h-16z'/%3E%3Cpath d='M580 520l16 27h-32z'/%3E%3C/g%3E%3Cg fill='%2372e8ff' fill-opacity='.18'%3E%3Cpath d='M260 150l7 12h-14z'/%3E%3Cpath d='M460 430l10 17h-20z'/%3E%3Cpath d='M30 300l6 10H24z'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(#b9a4ff0d 1px,transparent 1px) 0 0/48px 48px,
+    linear-gradient(90deg,#b9a4ff0d 1px,transparent 1px) 0 0/48px 48px}
+
+/* パネル：半透明の藍色＋四隅の角飾り */
+.panel{position:relative;border-radius:6px;background:linear-gradient(180deg,rgba(44,28,118,.8),rgba(22,14,64,.86));
+  border:1px solid var(--line);box-shadow:0 14px 34px #05021acc,inset 0 1px 0 #ffffff14,inset 0 0 24px #7d5cff14;backdrop-filter:blur(6px)}
+.panel::before{content:"";position:absolute;inset:-1px;pointer-events:none;
+  background:
+    linear-gradient(var(--acc),var(--acc)) left top/14px 2px no-repeat,linear-gradient(var(--acc),var(--acc)) left top/2px 14px no-repeat,
+    linear-gradient(var(--acc),var(--acc)) right bottom/14px 2px no-repeat,linear-gradient(var(--acc),var(--acc)) right bottom/2px 14px no-repeat;
+  opacity:.75}
+.ttl{font-weight:700;font-size:13px;letter-spacing:.2em;color:var(--acc)}
+.ttl::before{content:"";width:6px;height:6px;background:var(--cyan);transform:rotate(45deg);box-shadow:0 0 8px var(--cyan)}
+.ttl::after{background:linear-gradient(90deg,var(--line2),transparent)}
+
+/* HUD */
+.logo b{font-weight:700;font-size:26px;letter-spacing:.14em;background:linear-gradient(180deg,#ffffff,#d9ccff 50%,#9d82ff);
+  -webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 12px #8f6dff99)}
+.logo b::before{content:"◆";margin-right:6px;font-size:.7em;vertical-align:.15em;color:var(--cyan);-webkit-text-fill-color:var(--cyan);filter:drop-shadow(0 0 6px var(--cyan))}
+.track .lab b,.hpbox .lab b{font-weight:700;font-size:18px}
+.pip{border-radius:2px;background:#ffffff10;border-color:#c4b2ff33}
+.pip.done{background:#c4b2ff66;border-color:#c4b2ffaa}
+.pip.cur{background:#fff;box-shadow:0 0 10px var(--acc),0 0 18px var(--acc2)}
+.pip.ev::after{background:var(--cyan)}
+.hpbar{border-radius:2px}.hpbar i{background:linear-gradient(90deg,#ff3d7a,#ff9ac0);box-shadow:0 0 8px #ff5d8a}
+.goldpill{border-radius:6px;background:linear-gradient(180deg,#2d1d6e,#170e44);border-color:#ffd27a55;box-shadow:0 0 18px #7d5cff44,inset 0 1px 0 #ffffff22}
+.goldpill b{font-weight:700;font-size:28px}
+
+/* シナジー */
+.syn{border-radius:4px;background:#ffffff08}
+.hex{background:#3b2c86}
+.sname b{color:var(--acc);font-weight:700;font-size:15px}
+.spips span{border-radius:2px}
+.spips span.on{background:var(--acc);color:#1b0f4a}
+.emb{color:var(--cyan)}
+
+/* 盤面：光る縁のガラス板（前列・後列の境目に光の線） */
+.arena.strong{border-color:#ff5d8a77;box-shadow:0 0 30px #ff5d8a2a,0 14px 34px #05021acc}
+.elabel{font-weight:700;letter-spacing:.06em}
+.board{padding:12px 10px 10px;row-gap:16px;border-radius:4px; /* 行間は★バッジがはみ出す分 */border:1px solid #b9a4ff66;
+  background:
+    linear-gradient(transparent calc(50% - 1px),#c4b2ff99 50%,transparent calc(50% + 1px)),
+    linear-gradient(180deg,rgba(150,125,255,.22),rgba(90,60,220,.12) 60%,rgba(120,95,255,.2));
+  box-shadow:inset 0 0 28px #8f6dff33,0 0 22px #7d5cff33,inset 0 1px 0 #ffffff33}
+.board.enemy{border-color:#ff8ab066;background:
+    linear-gradient(transparent calc(50% - 1px),#ff9ac066 50%,transparent calc(50% + 1px)),
+    linear-gradient(180deg,rgba(170,90,200,.2),rgba(90,40,170,.12) 60%,rgba(150,80,220,.18))}
+.vs span{color:#fff;border-radius:2px;border-color:var(--acc);background:linear-gradient(180deg,#5a3fd0,#2a1a7a);
+  clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 50%,calc(100% - 10px) 100%,10px 100%,0 50%);padding:4px 22px;box-shadow:none}
+.vs::before,.vs::after{background:linear-gradient(90deg,transparent,var(--acc),transparent)}
+
+/* ユニット：縦長のカード。★は上端の金色バッジ */
+.cell{aspect-ratio:4/5;border-radius:4px;background:#0c0730aa;border:1px solid #c4b2ff26;box-shadow:inset 0 0 14px #00000066}
+.cell.empty::before{inset:36% 28%;border-color:#c4b2ff33;border-radius:2px}
+.board.enemy .cell.empty{background:#170a36aa}
+.cell.empty:hover{border-color:var(--cyan);box-shadow:inset 0 0 16px #72e8ff33}
+.cell.unit{border:1px solid color-mix(in srgb,var(--cc) 75%,#fff);
+  background:
+    linear-gradient(180deg,transparent 55%,color-mix(in srgb,var(--cc) 45%,transparent)),
+    radial-gradient(ellipse at 50% 30%,color-mix(in srgb,var(--cc) 30%,transparent),transparent 70%),
+    linear-gradient(170deg,#2a1d6a,#0e0830 80%);
+  box-shadow:0 6px 14px #0008,inset 0 1px 0 #ffffff55,inset 0 0 0 2px #0006,0 0 12px color-mix(in srgb,var(--cc) 35%,transparent)}
+.cell.sel{outline:2px solid var(--cyan);outline-offset:3px;box-shadow:0 0 22px #72e8ff88}
+.cell.kcur{outline-color:var(--acc)}
+.cell .stars{top:-9px;left:50%;transform:translateX(-50%);padding:1px 9px 0;line-height:1.35;color:#3a2200;text-shadow:none;letter-spacing:0;
+  background:linear-gradient(180deg,#fff4c8,#ffd27a 45%,#e9a531);clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 50%,calc(100% - 7px) 100%,7px 100%,0 50%);
+  filter:drop-shadow(0 0 4px #ffc14d);z-index:1}
+.cell .stars.s2{background:linear-gradient(180deg,#ffffff,#d8e2ff 50%,#9fb2e8);filter:drop-shadow(0 0 4px #b8c8ff);color:#1f2a55}
+.cell .stars.s3{background:linear-gradient(180deg,#fff,#ffe28a 40%,#ff9d00);filter:drop-shadow(0 0 7px #ffb22a);color:#3a1a00}
+.nm{border-radius:0 0 3px 3px;background:linear-gradient(180deg,transparent,#0a0626e6 55%)}
+.its{top:14px}
+.cell.st3::after{border-radius:4px}
+.acting{box-shadow:0 0 24px var(--cyan),0 0 0 2px var(--cyan)!important}
+.ebar i{background:var(--cyan);box-shadow:0 0 4px var(--cyan)}
+.bar{border-radius:1px}
+.cell.drop{outline-color:var(--cyan);background:#72e8ff14}
+
+/* アイテム・右パネル */
+.item{border-radius:4px;background:linear-gradient(180deg,#3a2994,#20155a);border-color:var(--line2)}
+.item:hover,.item.sel{border-color:var(--cyan);box-shadow:0 0 14px #72e8ff55}
+.kv b.g{color:var(--acc)}
+
+/* ツールチップ・案内 */
+#tt,#tip{border-radius:4px;background:#160d44f5;border-color:var(--line2)}
+#tip{border-left-color:var(--cyan)}
+.tti{border-radius:4px}
+.ttsk b,.ttfoot b{color:var(--acc)}
+.tttr span.on{background:#c4b2ff33;color:var(--acc)}
+
+/* ショップ（下部ドック） */
+.dock{background:linear-gradient(180deg,#1d1158f2,#0c0730f7);border-top:1px solid var(--acc);box-shadow:0 -6px 24px #7d5cff33,0 -1px 0 #72e8ff55}
+.lvnum{color:#1b0f4a;background:linear-gradient(160deg,#ffffff,#c4b2ff 55%,#8f6dff)}
+.expbar{border-radius:2px}.expbar i{background:linear-gradient(90deg,#7d5cff,var(--cyan))}
+.card{border-radius:4px;border:1px solid color-mix(in srgb,var(--cc) 75%,#fff);
+  background:
+    linear-gradient(180deg,color-mix(in srgb,var(--cc) 55%,transparent) 0 3px,transparent 3px),
+    radial-gradient(ellipse at 50% 30%,color-mix(in srgb,var(--cc) 30%,transparent),transparent 65%),
+    linear-gradient(170deg,#2c1f70,#0e0830 85%)}
+.card:hover{box-shadow:0 14px 26px #000a,0 0 18px color-mix(in srgb,var(--cc) 55%,transparent)}
+.card .ctr span{border-radius:2px;background:#ffffff14}
+.card .price{font-weight:700;font-size:17px}
+
+/* ボタン：角の鋭いSF調。BATTLE は白〜藤色で角を斜めに切る */
+button{border-radius:3px;background:linear-gradient(180deg,#3f2c9e,#22165f);border-color:var(--line2)}
+button:hover:not(:disabled){border-color:var(--cyan);box-shadow:0 0 12px #72e8ff44}
+button.fight{font-weight:700;font-size:20px;letter-spacing:.3em;color:#1b0f4a;border-radius:0;
+  background:linear-gradient(180deg,#ffffff,#e0d6ff 45%,#b39dff);box-shadow:none;
+  clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,14px 100%,0 50%)}
+button.fight::after{box-shadow:inset 0 0 22px #72e8ff}
+button.fight .k{color:#5b4aa8}
+
+/* オーバーレイ・バナー */
+.overlay{background:radial-gradient(circle,#2a1880d9,#05021af0)}
+.overlay h2{font-weight:700;letter-spacing:.16em;background:linear-gradient(180deg,#fff,#d9ccff 55%,#9d82ff);-webkit-background-clip:text;background-clip:text}
+.choice{border-radius:6px;background:radial-gradient(ellipse at 50% 0%,#8f6dff44,transparent 60%),linear-gradient(180deg,#34228a,#160d44);border-color:#c4b2ff66}
+.choice:hover{box-shadow:0 20px 40px #000c,0 0 26px #8f6dff88}
+.result,.help{border-radius:6px;background:linear-gradient(180deg,#2e1e86,#140b40)}
+.result button{font-weight:700;color:#1b0f4a;background:linear-gradient(180deg,#fff,#c4b2ff);border-radius:3px}
+.help h3{color:var(--acc)}
+.newbest{color:var(--gold)}
+#banner .band{background:linear-gradient(90deg,transparent,#1a0e52e6 20%,#1a0e52e6 80%,transparent);border-top:1px solid #c4b2ff55;border-bottom:1px solid #c4b2ff55}
+#banner b{font-weight:700;letter-spacing:.3em}
+#banner.win b{background:linear-gradient(180deg,#fff,#d9ccff 50%,#9d82ff);-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 16px #8f6dffcc)}
+#banner.info b{text-shadow:0 0 16px var(--cyan)}
+
+/* ----- カクカクした形：角を斜めに切る -----
+   corner-shape:bevel は border-radius の角を直線で切る指定。枠線や影も切った形に沿う。
+   非対応のブラウザでは小さな角丸になるだけで崩れない。
+   左上と右下だけを切る（12px 0）のが基本形 */
+.panel,.board,.result,.help,.choice,#tt,#tip{corner-shape:bevel}
+.panel{border-radius:16px 0}
+.panel::before{ /* 角飾りは切っていない右上・左下に置く */
+  background:
+    linear-gradient(var(--acc),var(--acc)) right top/16px 2px no-repeat,linear-gradient(var(--acc),var(--acc)) right top/2px 16px no-repeat,
+    linear-gradient(var(--acc),var(--acc)) left bottom/16px 2px no-repeat,linear-gradient(var(--acc),var(--acc)) left bottom/2px 16px no-repeat}
+.board{border-radius:16px 0}
+.result,.help{border-radius:20px 0}
+.choice{border-radius:16px 0}
+#tt,#tip{border-radius:12px 0}
+.cell,.cell.st3::after,.card,.syn,.item,.goldpill,button:not(.fight),kbd{corner-shape:bevel}
+.cell,.cell.st3::after{border-radius:9px 0}
+.nm{border-radius:0 0 9px 0;corner-shape:bevel}
+.cell.empty::before{inset:40% 32%;transform:none;border-radius:5px;corner-shape:bevel}
+.card{border-radius:12px 0}
+.syn{border-radius:10px 0}
+.item{border-radius:9px 0}
+.goldpill{border-radius:14px 0}
+button:not(.fight){border-radius:9px 0}
+kbd{border-radius:5px}
+/* 小さな札やアイコンは八角形・六角形に */
+.its i,.item i,.spips span,.card .ctr span,.tttr span,.tti{border-radius:5px;corner-shape:bevel}
+.streak,.etag{border-radius:999px;corner-shape:bevel} /* 両端がとがった六角形の札 */
+/* ゲージは平行四辺形に */
+.hpbar,.expbar{border-radius:0;transform:skewX(-24deg)}
+.track .pips{gap:5px}
 </style>
 </head>
 <body>
@@ -353,11 +536,11 @@ button.fight:not(:disabled)::after{animation:breathe 2s ease-in-out infinite;wil
     <section class="center">
       <div class="panel arena" id="battleArea">
         <div class="banner-top"><div class="elabel" id="enemyLabel"></div><div class="etag" id="etag"></div></div>
-        <div class="field">
+        <div class="fieldwrap"><div class="field">
           <div class="board enemy" id="enemyBoard"></div>
           <div class="vs"><span>VS</span></div>
           <div class="board" id="playerBoard"></div>
-        </div>
+        </div></div>
         <div class="rowhint"><span>▲ 前衛：近接攻撃に狙われやすい</span><span>▼ 後衛</span></div>
         <div class="benchwrap">
           <div class="ttl">Bench <small>ベンチ</small></div>
