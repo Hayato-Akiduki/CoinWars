@@ -1,0 +1,219 @@
+[
+  {
+    "Key": "swordman",
+    "Name": "見習い剣士",
+    "Cost": 1,
+    "Traits": [
+      "knight"
+    ],
+    "Hp": 550,
+    "Atk": 50,
+    "Spd": 100,
+    "Range": 1,
+    "Skill": "strike"
+  },
+  {
+    "Key": "shield",
+    "Name": "盾持ち",
+    "Cost": 1,
+    "Traits": [
+      "guard"
+    ],
+    "Hp": 750,
+    "Atk": 35,
+    "Spd": 85,
+    "Range": 1,
+    "Skill": "guard"
+  },
+  {
+    "Key": "archer",
+    "Name": "弓兵",
+    "Cost": 1,
+    "Traits": [
+      "wind"
+    ],
+    "Hp": 420,
+    "Atk": 52,
+    "Spd": 110,
+    "Range": 2,
+    "Skill": "strike"
+  },
+  {
+    "Key": "spark",
+    "Name": "火花の魔導士",
+    "Cost": 1,
+    "Traits": [
+      "mage"
+    ],
+    "Hp": 400,
+    "Atk": 42,
+    "Spd": 95,
+    "Range": 2,
+    "Skill": "aoe"
+  },
+  {
+    "Key": "peddler",
+    "Name": "露店商",
+    "Cost": 1,
+    "Traits": [
+      "rich"
+    ],
+    "Hp": 480,
+    "Atk": 40,
+    "Spd": 100,
+    "Range": 2,
+    "Skill": "gold"
+  },
+  {
+    "Key": "captain",
+    "Name": "傭兵隊長",
+    "Cost": 2,
+    "Traits": [
+      "knight",
+      "rich"
+    ],
+    "Hp": 700,
+    "Atk": 62,
+    "Spd": 100,
+    "Range": 1,
+    "Skill": "gold"
+  },
+  {
+    "Key": "dancer",
+    "Name": "風の踊り子",
+    "Cost": 2,
+    "Traits": [
+      "wind"
+    ],
+    "Hp": 600,
+    "Atk": 58,
+    "Spd": 135,
+    "Range": 1,
+    "Skill": "strike"
+  },
+  {
+    "Key": "healer",
+    "Name": "治癒術士",
+    "Cost": 2,
+    "Traits": [
+      "guard",
+      "mage"
+    ],
+    "Hp": 550,
+    "Atk": 45,
+    "Spd": 95,
+    "Range": 2,
+    "Skill": "heal"
+  },
+  {
+    "Key": "banker",
+    "Name": "銀行家",
+    "Cost": 2,
+    "Traits": [
+      "rich",
+      "mage"
+    ],
+    "Hp": 520,
+    "Atk": 55,
+    "Spd": 95,
+    "Range": 2,
+    "Skill": "aoe"
+  },
+  {
+    "Key": "paladin",
+    "Name": "聖騎士",
+    "Cost": 3,
+    "Traits": [
+      "knight",
+      "guard"
+    ],
+    "Hp": 1000,
+    "Atk": 70,
+    "Spd": 95,
+    "Range": 1,
+    "Skill": "guard"
+  },
+  {
+    "Key": "witch",
+    "Name": "雷鳴の魔女",
+    "Cost": 3,
+    "Traits": [
+      "mage",
+      "wind"
+    ],
+    "Hp": 650,
+    "Atk": 72,
+    "Spd": 115,
+    "Range": 2,
+    "Skill": "aoe"
+  },
+  {
+    "Key": "golem",
+    "Name": "金庫番ゴーレム",
+    "Cost": 3,
+    "Traits": [
+      "rich",
+      "guard"
+    ],
+    "Hp": 1200,
+    "Atk": 60,
+    "Spd": 80,
+    "Range": 1,
+    "Skill": "gold"
+  },
+  {
+    "Key": "saint",
+    "Name": "黄金の剣聖",
+    "Cost": 4,
+    "Traits": [
+      "knight",
+      "rich"
+    ],
+    "Hp": 1100,
+    "Atk": 110,
+    "Spd": 110,
+    "Range": 1,
+    "Skill": "strike"
+  },
+  {
+    "Key": "seer",
+    "Name": "星詠み",
+    "Cost": 4,
+    "Traits": [
+      "mage"
+    ],
+    "Hp": 800,
+    "Atk": 95,
+    "Spd": 105,
+    "Range": 2,
+    "Skill": "aoe"
+  },
+  {
+    "Key": "tycoon",
+    "Name": "富豪王",
+    "Cost": 5,
+    "Traits": [
+      "rich",
+      "knight"
+    ],
+    "Hp": 1500,
+    "Atk": 130,
+    "Spd": 105,
+    "Range": 1,
+    "Skill": "bigmoney"
+  },
+  {
+    "Key": "dragon",
+    "Name": "嵐の竜",
+    "Cost": 5,
+    "Traits": [
+      "wind",
+      "mage"
+    ],
+    "Hp": 1300,
+    "Atk": 120,
+    "Spd": 125,
+    "Range": 2,
+    "Skill": "aoe"
+  }
+]
