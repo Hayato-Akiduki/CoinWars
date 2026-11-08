@@ -1,4 +1,4 @@
-# コイン・ウォーズ ver1.0
+# CoinWars ver1.0
 
 Windows向けC#版の初回正式リリースです。
 

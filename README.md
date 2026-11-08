@@ -1,10 +1,10 @@
-# コイン・ウォーズ
+# CoinWars
 
 キャラクターを雇用し、編成・装備・投資で20ラウンドの勝利を目指す、Windows向けのオートバトルゲームです。
 
 ## ダウンロード
 
-[Releases](https://github.com/Hayato-Akiduki/coin-wars/releases)から `CoinWars-Setup-v1.0.0.exe` をダウンロードして実行してください。
+[Releases](https://github.com/Hayato-Akiduki/CoinWars/releases)から `CoinWars-Setup-v1.0.0.exe` をダウンロードして実行してください。
 
 - Windows x64向け。ランタイム同梱で、.NETの別途インストールは不要です。
 - マウス中心の操作に対応。小画面では縦スクロールと2段ショップに切り替わります。

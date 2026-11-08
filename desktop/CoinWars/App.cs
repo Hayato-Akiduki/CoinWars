@@ -18,7 +18,7 @@ public class App : Application
     public static void Main()
     {
         using var mutex = new Mutex(true, "CoinWars.Desktop.SingleInstance", out bool owner);
-        if (!owner) { MessageBox.Show("コイン・ウォーズは既に起動しています。"); return; }
+        if (!owner) { MessageBox.Show("CoinWarsは既に起動しています。"); return; }
         new App().Run(new GameWindow());
     }
 }
@@ -53,7 +53,7 @@ public partial class GameWindow : Window
     {
         preview = Environment.GetCommandLineArgs().Contains("--preview");
         savePath = preview ? System.IO.Path.Combine(AppContext.BaseDirectory, "preview", "save.json") : Saves.FilePath;
-        Title = "コイン・ウォーズ";
+        Title = "CoinWars";
         Width = Math.Min(1440, SystemParameters.WorkArea.Width); Height = Math.Min(940, SystemParameters.WorkArea.Height);
         MinWidth = Math.Min(640,SystemParameters.WorkArea.Width); MinHeight = Math.Min(420,SystemParameters.WorkArea.Height);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -250,8 +250,8 @@ public partial class GameWindow : Window
     void Header()
     {
         var s = game.S;
-        Put(scene, Label("COIN WARS", 25, White, true), 28, 20, 225, 36);
-        Put(scene, Label("コイン・ウォーズ", 12, Muted), 30, 53, 220, 24);
+        Put(scene, Label("CoinWars", 25, White, true), 28, 20, 225, 36);
+        Put(scene, Label("CoinWars", 12, Muted), 30, 53, 220, 24);
         Put(scene, Plate("#E90A1126", "#53637E"), 272, 18, 882, 76);
         Put(scene, Label(s.Phase == "battle" ? "戦闘フェーズ" : s.Phase == "event" ? "投資の機会" : "準備フェーズ", 13, Cyan), 290, 28, 160, 23);
         Put(scene, Label($"{s.Round:00} / 20", 25, White, true), 290, 49, 140, 36);
