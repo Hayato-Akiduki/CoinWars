@@ -138,4 +138,12 @@ try{
  valid.MakeEnemy();valid.S.HpBuff=-1;File.WriteAllText(damagedPath,JsonSerializer.Serialize(valid.S));
  Check(Saves.ReadWithRecovery(damagedPath) is {Recovered:true},"invalid combat buff recovers from backup");
 }finally{Directory.Delete(damagedDir,true);}
+var challengeA=new Game();var challengeB=new Game();
+challengeA.New(123456);challengeB.New(123456);
+Check(JsonSerializer.Serialize(challengeA.S)==JsonSerializer.Serialize(challengeB.S),"same challenge number produces same opening");
+var resumedChallenge=new Game() {S=JsonSerializer.Deserialize<State>(JsonSerializer.Serialize(challengeA.S))!};
+challengeA.Roll();resumedChallenge.Roll();
+Check(challengeA.S.Shop.SequenceEqual(resumedChallenge.S.Shop),"challenge draws resume after reload");
+challengeA.Start();while(challengeA.S.Phase=="battle")challengeA.Step();
+Check(challengeA.S.Log.Any(entry=>entry.StartsWith("最初に倒れた味方：")),"battle report records first casualty or no casualties");
 Console.WriteLine($"{checks} checks passed.");

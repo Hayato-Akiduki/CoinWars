@@ -9,6 +9,8 @@ public class Unit {
 }
 public record Offer(string Kind,string Title,string Description,string Argument="");
 public class State {
+ public int? ChallengeNumber {get;set;}
+ public uint ChallengeState {get;set;}
  public int Version {get;set;}=1;
  public int Plays {get;set;} public int Clears {get;set;} public int BestRound {get;set;} public int BestClearHp {get;set;}
  public int Hp {get;set;}=100; public int Gold {get;set;}=6; public int Level {get;set;}=1; public int Exp {get;set;}
@@ -56,9 +58,18 @@ public class Game {
  public State S {get;set;}=new(); readonly Random rng;
  public List<Fighter> Fighters {get;private set;}=[]; public int Actions {get;private set;}
  public Game(int? seed=null){rng=seed.HasValue?new Random(seed.Value):new Random();}
- public void New(){LastCue=null;LastMerge=null;S=new(){Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp}; Fighters=[];S.Board[1]=new(); Roll(); MakeEnemy(); Log("ユニットを購入し、選択→空きマスで配置。準備できたら戦闘開始。");}
+ public string? FirstFallen {get;private set;}
+ double NextFraction(){
+  if(S.ChallengeNumber==null)return rng.NextDouble();
+  uint value=S.ChallengeState;
+  value^=value<<13; value^=value>>17; value^=value<<5;
+  S.ChallengeState=value;
+  return value/4294967296.0;
+ }
+ int NextIndex(int limit=int.MaxValue)=>S.ChallengeNumber==null?rng.Next(limit):(int)(NextFraction()*limit);
+ public void New(int? challenge=null){FirstFallen=null;LastCue=null;LastMerge=null;S=new(){ChallengeNumber=challenge,ChallengeState=(uint)(challenge??0)+1,Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp}; Fighters=[];S.Board[1]=new(); Roll(); MakeEnemy(); Log("ユニットを購入し、選択→空きマスで配置。準備できたら戦闘開始。");}
  public void Log(string s){S.Log.Insert(0,s);if(S.Log.Count>60)S.Log.RemoveAt(60);}
- T Pick<T>(IEnumerable<T> values){var a=values.ToArray();return a[rng.Next(a.Length)];}
+ T Pick<T>(IEnumerable<T> values){var a=values.ToArray();return a[NextIndex(a.Length)];}
  public IEnumerable<Unit> Owned()=>S.Board.Concat(S.Bench).OfType<Unit>();
  public int Count=>S.Board.OfType<Unit>().Count();
  public int Capacity=>Math.Min(8,S.Level);
@@ -69,7 +80,7 @@ public class Game {
   if(player)foreach(var (t,n) in S.Emblems)counts[t]+=n;return counts;
  }
  public int Tier(string t,Dictionary<string,int>? counts=null)=>Data.Thresholds[t].Count(n=>(counts??Counts(S.Board))[t]>=n);
- string RandomUnit(int lv){int p=rng.Next(100),c=1;foreach(var chance in Data.Odds[lv]){p-=chance;if(p<0)break;c++;}return Pick(Data.Units.Where(u=>u.Cost==c)).Key;}
+ string RandomUnit(int lv){int p=NextIndex(100),c=1;foreach(var chance in Data.Odds[lv]){p-=chance;if(p<0)break;c++;}return Pick(Data.Units.Where(u=>u.Cost==c)).Key;}
  public void Roll(){S.Shop=Enumerable.Range(0,5).Select(_=>(string?)RandomUnit(S.Level)).ToArray();}
  public string Reroll(){if(S.Phase!="plan")return "準備中のみ操作できます";if(S.Gold<2)return "コイン不足";S.Gold-=2;Roll();return "";}
  public string BuyExp(){if(S.Phase!="plan"||S.Level==9)return "レベルアップできません";if(S.Gold<4)return "コイン不足";S.Gold-=4;AddExp(4);return "";}
@@ -127,8 +138,8 @@ public class Game {
  public string Unequip(Unit u,int i){if(S.Phase!="plan")return "";int wait=u.Equipped.ElementAtOrDefault(i)+2-S.Round;if(wait>0)return $"あと{wait}ラウンドで外せます";if(S.Items.Count>=10)return "装備欄が満杯です";S.Items.Add(u.Items[i]);u.Items.RemoveAt(i);u.Equipped.RemoveAt(i);return "";}
  public void MakeEnemy(){
   int r=S.Round;bool strong=r%5==0;int n=r==1?1:Math.Min(8,1+(int)Math.Ceiling(r/2.2)+(strong?1:0)),lv=Math.Min(9,1+(int)(r/2.3)+(strong?1:0));
-  var units=new List<Unit>();for(int i=0;i<n;i++){double p=rng.NextDouble()-(strong?.1:0);int star=r>=4&&p<Math.Min(.85,(r-3)*.09)?2:1;if(r>=13&&p<(r-12)*.04)star=3;
-   var u=new Unit{Key=RandomUnit(lv),Star=star};if(r>=6)for(int j=0;j<r/6;j++)if(rng.NextDouble()<.5){u.Items.Add(Pick(Data.Items.Where(x=>x.Key!="purse")).Key);u.Equipped.Add(0);}units.Add(u);}
+  var units=new List<Unit>();for(int i=0;i<n;i++){double p=NextFraction()-(strong?.1:0);int star=r>=4&&p<Math.Min(.85,(r-3)*.09)?2:1;if(r>=13&&p<(r-12)*.04)star=3;
+   var u=new Unit{Key=RandomUnit(lv),Star=star};if(r>=6)for(int j=0;j<r/6;j++)if(NextFraction()<.5){u.Items.Add(Pick(Data.Items.Where(x=>x.Key!="purse")).Key);u.Equipped.Add(0);}units.Add(u);}
   if(r==20){units[0]=new(){Key="tycoon",Star=3,Items=["blade","armor"],Equipped=[0,0]};units[1]=new(){Key="dragon",Star=2,Items=["tome"],Equipped=[0]};}
   S.Enemy=new Unit?[8];foreach(var u in units.OrderBy(u=>Data.Def(u).Range)){int[] order=Data.Def(u).Range==1?[1,2,0,3,5,6,4,7]:[5,6,4,7,1,2,0,3];S.Enemy[order.First(i=>S.Enemy[i]==null)]=u;}
  }
@@ -139,18 +150,18 @@ public class Game {
   new("attack","鍛錬","味方全員の攻撃+10%・永続"),new("hp","鉄壁の訓練","味方全員のHP+15%・永続"),new("items","宝箱","装備を2個獲得"),
   new("heal","休息","プレイヤーHPを20回復"),new("exp","特訓","経験値+8"),new("emblem",Data.Traits[trait]+"の紋章","シナジー人数+1・永続",trait),
   new("gamble","ギャンブル","50%で所持金2倍、50%で半分")];
-  S.Offers=pool.OrderBy(_=>rng.Next()).Take(3).ToList();S.Phase="event";
+  S.Offers=pool.OrderBy(_=>NextIndex()).Take(3).ToList();S.Phase="event";
  }
  public void Choose(int i){
   if(S.Phase!="event"||i<0||i>=S.Offers.Count)return;var o=S.Offers[i];
   switch(o.Kind){case "cash":S.Gold+=12;break;case "loan":S.Gold+=25;S.Debt+=5;break;case "interest":S.InterestCap+=3;break;
    case "scout":int slot=Array.IndexOf(S.Bench,null);if(slot<0)S.Gold+=Data.Def(o.Argument).Cost*3;else{S.Bench[slot]=new(){Key=o.Argument,Star=2};Merge(o.Argument);}break;
    case "attack":S.AttackBuff+=.1;break;case "hp":S.HpBuff+=.15;break;case "items":AddItem();AddItem();break;case "heal":S.Hp=Math.Min(100,S.Hp+20);break;
-   case "exp":AddExp(8);break;case "emblem":S.Emblems[o.Argument]=S.Emblems.GetValueOrDefault(o.Argument)+1;break;case "gamble":S.Gold=rng.Next(2)==0?S.Gold*2:S.Gold/2;break;}
+   case "exp":AddExp(8);break;case "emblem":S.Emblems[o.Argument]=S.Emblems.GetValueOrDefault(o.Argument)+1;break;case "gamble":S.Gold=NextIndex(2)==0?S.Gold*2:S.Gold/2;break;}
   Log("イベント："+o.Title);S.Offers.Clear();S.Phase="plan";
  }
  public int Income(bool win,int? streak=null){int st=Math.Abs(streak??S.Streak);return 5+Interest+(st>=5?2:st>=3?1:0)+new[]{0,1,3,6}[Tier("rich")]+(win?1:0)-(S.Debt>0?6:0);}
- public bool Start(){if(S.Phase!="plan"||Count==0)return false;Fighters=Build(S.Board,true).Concat(Build(S.Enemy,false)).ToList();Actions=0;S.Phase="battle";Log($"ラウンド {S.Round} 開戦");return true;}
+ public bool Start(){if(S.Phase!="plan"||Count==0)return false;FirstFallen=null;Fighters=Build(S.Board,true).Concat(Build(S.Enemy,false)).ToList();Actions=0;S.Phase="battle";Log($"ラウンド {S.Round} 開戦");return true;}
  IEnumerable<Fighter> Build(Unit?[] board,bool player){
   var counts=Counts(board,player);int knight=Tier("knight",counts),guard=Tier("guard",counts),wind=Tier("wind",counts),mage=Tier("mage",counts),rich=Tier("rich",counts);
   for(int i=0;i<board.Length;i++){if(board[i] is not Unit u)continue;var d=Data.Def(u);bool Has(string t)=>d.Traits.Contains(t);int N(string k)=>u.Items.Count(x=>x==k);
@@ -160,11 +171,12 @@ public class Game {
    hp*=1+.25*N("armor");atk*=1+.2*N("blade");spd*=1+.15*N("boots");sm+=.35*N("tome");
    int need=Has("mage")&&mage>=2?2:3;
    yield return new(){Unit=u,Player=player,Slot=i,Hp=hp,MaxHp=hp,Attack=atk,Speed=spd,SkillMultiplier=sm,Reduction=Has("knight")&&knight==2?.15:0,
-   Gauge=Has("wind")&&wind==2?100:rng.NextDouble()*30,Shield=hp*(.3*N("amulet")+(guard==2?.15:0)),Need=need,Energy=Math.Min(need-1,2*N("crystal")),Steal=.2*N("fang"),Purse=N("purse")};
+   Gauge=Has("wind")&&wind==2?100:NextFraction()*30,Shield=hp*(.3*N("amulet")+(guard==2?.15:0)),Need=need,Energy=Math.Min(need-1,2*N("crystal")),Steal=.2*N("fang"),Purse=N("purse")};
   }
  }
  void Hit(Fighter f,Fighter t,double mul){
-  double dmg=Math.Round(f.Attack*mul*(.9+rng.NextDouble()*.2)*(1-t.Reduction)),absorbed=Math.Min(t.Shield,dmg);t.Shield-=absorbed;t.Hp=Math.Max(0,t.Hp-dmg+absorbed);f.Dealt+=dmg;
+  double dmg=Math.Round(f.Attack*mul*(.9+NextFraction()*.2)*(1-t.Reduction)),absorbed=Math.Min(t.Shield,dmg);t.Shield-=absorbed;t.Hp=Math.Max(0,t.Hp-dmg+absorbed);f.Dealt+=dmg;
+  if(t.Player&&!t.Alive)FirstFallen??=Data.Def(t.Unit).Name;
   impacts.Add(new(t.Player,t.Slot,dmg,"damage"));
   f.Hp=Math.Min(f.MaxHp,f.Hp+dmg*f.Steal);if(t.Hp==0&&f.Player)S.Gold+=f.Purse;
  }
@@ -188,10 +200,10 @@ public class Game {
   if(!p||!e||Actions>240)End(!e&&p?"win":!p?"lose":"draw");
  }
  void End(string result){
-  bool win=result=="win",strong=S.Round%5==0;var mvp=Fighters.Where(f=>f.Player).MaxBy(f=>f.Dealt);Log($"MVP：{Data.Def(mvp!.Unit).Name} / {mvp.Dealt:0}ダメージ");
+  bool win=result=="win",strong=S.Round%5==0;var mvp=Fighters.Where(f=>f.Player).MaxBy(f=>f.Dealt);Log("最初に倒れた味方："+(FirstFallen??"なし"));Log($"MVP：{Data.Def(mvp!.Unit).Name} / {mvp.Dealt:0}ダメージ");
   if(win){S.Streak=S.Streak>0?S.Streak+1:1;AddItem();if(strong){AddItem();S.Gold+=5;}Log("勝利！");}
   else {int damage=2+S.Round/3+Fighters.Where(f=>!f.Player&&f.Alive).Sum(f=>f.Unit.Star+Data.Def(f.Unit).Cost/2);if(result=="draw")damage=(int)Math.Ceiling(damage/2.0);
-   S.Hp=Math.Max(0,S.Hp-damage);S.Streak=result=="draw"?0:S.Streak<0?S.Streak-1:-1;Log($"{(result=="draw"?"引き分け":"敗北")}：HP −{damage}");if(result=="lose"&&rng.NextDouble()<.3)AddItem();}
+   S.Hp=Math.Max(0,S.Hp-damage);S.Streak=result=="draw"?0:S.Streak<0?S.Streak-1:-1;Log($"{(result=="draw"?"引き分け":"敗北")}：HP −{damage}");if(result=="lose"&&NextFraction()<.3)AddItem();}
   S.Results.Add(result);S.BestRound=Math.Max(S.BestRound,S.Round);if(S.Hp<=0||S.Round==20){if(S.Hp>0&&win){S.Clears++;S.BestClearHp=Math.Max(S.BestClearHp,S.Hp);}S.Phase="over";Log(S.Hp>0&&win?"全20ラウンド制覇！":"ゲーム終了");return;}
   int income=Income(win);S.Gold=Math.Max(0,S.Gold+income);if(S.Debt>0)S.Debt--;Log($"収入 {income:+0;-0;0} コイン");
   S.Round++;AddExp(2);if(!S.Locked)Roll();MakeEnemy();S.Phase="plan";if(new[]{2,5,8,11,14,17}.Contains(S.Round))CreateOffers();

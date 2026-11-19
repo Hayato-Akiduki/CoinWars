@@ -114,10 +114,18 @@ public partial class GameWindow : Window
         if (message.Length == 0) { message = success; Sound(sound); }
         Persist(); Render();
     }
+    Unit? highlightedPurchase;
+    DateTime highlightUntil;
     void Buy(int index)
     {
         selected = null;
-        Execute(() => game.Buy(index), "雇用したキャラクターは待機エリアに加わります。", "buy");
+        var previous=game.Owned().ToHashSet();
+        Execute(() => {
+            var error=game.Buy(index);
+            highlightedPurchase=error.Length==0?game.Owned().FirstOrDefault(u=>!previous.Contains(u)):null;
+            highlightUntil=DateTime.UtcNow.AddSeconds(1.5);
+            return error;
+        }, "雇用したキャラクターは待機エリアに加わります。", "buy");
         if (game.LastMerge is {} merge)
         {
             Sound("merge");
@@ -200,15 +208,16 @@ public partial class GameWindow : Window
         if (selected is not {} x || !Planning) return;
         game.Sell(x.bench, x.index); selected = null; selectedItem=null;message=game.SoldName+"を売却しました。取り消しできます。";Sound("buy"); Persist(); Render();
     }
-    void Restart()
+    void Restart()=>RestartWith(null);
+    void RestartWith(int? challenge)
     {
         transitionGeneration++; timer.Stop(); ClearPresentation(); resultPending = false; paused = false;
         selected = null; selectedItem = null; enemyPreview = false; dialog = null;
-        game.New(); SyncPlayback(); Persist(); Render(); Sound("start");
+        game.New(challenge); SyncPlayback(); Persist(); Render(); Sound("start");
     }
     void OnKey(object sender, KeyEventArgs e)
     {
-        if (e.IsRepeat) return;
+        if (e.IsRepeat || (Keyboard.FocusedElement is TextBox && e.Key!=Key.Escape)) return;
         if (e.Key == Key.M) { ToggleMute(); e.Handled = true; return; }
         if (e.Key == Key.P && dialog == null) { TogglePause(); e.Handled = true; return; }
         if (e.Key == Key.F11) { WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized; e.Handled = true; return; }
@@ -389,7 +398,16 @@ public partial class GameWindow : Window
         Put(scene, Label($"EXP {game.S.Exp} / {(game.S.Level == 9 ? "MAX" : Data.Exp[game.S.Level])}", 11, Muted), 43, 659, 145, 22);
         Put(scene, Meter(game.S.Level == 9 ? 1 : (double)game.S.Exp/Data.Exp[game.S.Level], "#B8DBEF"), 43, 684, 140, 4);
         Put(scene, Btn("EXP +4\n4 ◈ [F]", () => Execute(game.BuyExp, "経験値を購入しました。", "buy"), Planning && game.S.Level < 9 && game.S.Gold >= 4), 198, 619, 105, 67);
-        for (int i = 0; i < 8; i++) Put(scene, Actor(game.S.Bench[i], null, true, i, false), 324 + i * 97, 614, 90, 78);
+        for(int i=0;i<8;i++){
+            double x=324+i*97;
+            Put(scene,Actor(game.S.Bench[i],null,true,i,false),x,614,90,78);
+            var remaining=highlightUntil-DateTime.UtcNow;
+            if(highlightedPurchase!=null && game.S.Bench[i]==highlightedPurchase && remaining>TimeSpan.Zero){
+                var glow=new Border {BorderBrush=Gold,BorderThickness=new Thickness(4),IsHitTestVisible=false};
+                Put(scene,glow,x,614,90,78);
+                glow.BeginAnimation(OpacityProperty,new DoubleAnimation(1,0,remaining));
+            }
+        }
         Put(scene, Label("◈", 30, Gold), 1121, 626, 40, 40);
         Put(scene, Label(game.S.Gold.ToString(), 33, Gold, true), 1164, 623, 95, 45);
         Put(scene, Btn(shopOpen ? "ショップ ▾" : "ショップ ▴", () => { if (!animating && !resultPending) { shopOpen = !shopOpen; Render(); } }), 1263, 627, 137, 47);
@@ -419,6 +437,7 @@ public partial class GameWindow : Window
         var panel = Modal(win ? "TRIUMPH" : "GAME OVER", win ? "全20ラウンド制覇" : "次の投資が、新たな勝機になる。", 720, 420);
         panel.Children.Add(Label($"到達 {game.S.Round} ラウンド     HP {game.S.Hp}     コイン {game.S.Gold}", 22, White));
         panel.Children.Add(Label($"自己ベスト R{game.S.BestRound} / クリア {game.S.Clears}回", 15, Muted));
+        if(game.S.ChallengeNumber is int seed)panel.Children.Add(Label($"チャレンジ番号 {seed}",20,Gold));
         var next = Btn("もう一度挑戦する", Restart, true, true); next.Margin = new Thickness(80,40,80,0); next.Height = 55; panel.Children.Add(next);
     }
     StackPanel Modal(string title, string subtitle, double width, double height)
@@ -463,6 +482,13 @@ public partial class GameWindow : Window
             panel.Children.Add(Label("100% → 115% → 130%。説明画面はスクロールできます。",15,Muted));
             panel.Children.Add(Btn(preferences.Muted ? "効果音：OFF" : "効果音：ON", ToggleMute));
             panel.Children.Add(Btn(preferences.ReducedMotion ? "演出：控えめ" : "演出：通常", () => { preferences=preferences with {ReducedMotion=!preferences.ReducedMotion};SavePreferences();RenderOverlays(); }));
+            if(game.S.ChallengeNumber is int active)panel.Children.Add(Label($"チャレンジ番号 {active}",18,Gold));
+            var number=new TextBox {MaxLength=9,FontSize=20};
+            panel.Children.Add(Label("友人と同じ番号で挑戦（1～9桁）。開始すると現在の進行を置き換えます。",16,White));
+            panel.Children.Add(number);
+            var challengeStart=Btn("この番号で最初から挑戦",()=>{if(int.TryParse(number.Text,out int seed))RestartWith(seed);},false);
+            number.TextChanged+=(sender,args)=>challengeStart.IsEnabled=Planning && int.TryParse(number.Text,System.Globalization.NumberStyles.None,null,out _);
+            panel.Children.Add(challengeStart);
             panel.Children.Add(Btn("最初から", () => SetDialog("restart"),game.S.Phase!="battle"&&!resultPending));
             panel.Children.Add(Label($"記録：{game.S.Plays}回挑戦 / {game.S.Clears}回クリア\n準備中・イベント選択中は自動保存します。",16,Muted));
         }

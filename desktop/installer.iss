@@ -1,7 +1,8 @@
 [Setup]
 AppId={{75D5CD52-8734-4C3E-89ED-3D1CF1966514}
 AppName=CoinWars
-AppVersion=1.0.0
+AppVersion=1.1.0
+SetupIconFile=CoinWars\Assets\CoinWars.ico
 DefaultDirName={localappdata}\Programs\CoinWars
 DefaultGroupName=CoinWars
 PrivilegesRequired=lowest

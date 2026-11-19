@@ -152,6 +152,7 @@ public partial class GameWindow
         Put(layer,Label(result=="win"?"VICTORY":result=="draw"?"DRAW":"DEFEAT",52,accent,true),355,48,550,90);
         Put(layer,Label(result=="win"?"投資が、勝利を引き寄せた。":result=="draw"?"時間切れ。編成を見直して次の戦いへ。":"まだ終わらない。次の一手を。",19,White),368,143,520,47);
         Put(layer,Label($"残りHP {game.S.Hp}     所持コイン {game.S.Gold}",19,White),368,201,520,35);
+        Put(layer,Label("最初に倒れた味方："+(game.FirstFallen??"なし"),17,White),368,337,520,36);
         if(!preferences.ReducedMotion)
         {
             layer.RenderTransform=new TranslateTransform(-85,0);
