@@ -465,46 +465,12 @@ public partial class GameWindow : Window
         }
         panel.Children.Add(cards);
     }
-    void EndDialog()
-    {
-        bool abandoned = game.S.RunResults.LastOrDefault() is { Outcome: "abandoned" } last && last.Attempt == game.S.Plays;
-        bool win = !abandoned && game.S.FinalScore().Cleared;
-        int? challenge = game.S.ChallengeNumber;
-        string title = win ? "TRIUMPH" : abandoned ? "途中終了" : "GAME OVER";
-        var panel = Modal(title, win ? $"全20ラウンド制覇 / {DifficultyName(game.S.Difficulty)}" : DifficultyName(game.S.Difficulty), 720, challenge.HasValue ? 510 : 450);
-        panel.Children.Add(Label($"到達 {game.S.Round} ラウンド     HP {game.S.Hp}     コイン {game.S.Gold}", 22, White));
-        if (!abandoned) panel.Children.Add(Label($"今回のスコア {game.S.FinalScore().Points:N0} pt", 22, Gold, true));
-        panel.Children.Add(Label($"自己ベスト R{game.S.BestRound} / クリア {game.S.Clears}回", 15, Muted));
-        if (challenge is int seed)
-        {
-            panel.Children.Add(Label($"チャレンジ番号 {seed}", 20, Gold));
-            var retry = Btn("同じ番号で再挑戦", () => RestartWith(seed, game.S.Difficulty), true, true);
-            retry.Margin = new Thickness(80, 24, 80, 0);
-            retry.Height = 55;
-            panel.Children.Add(retry);
-        }
-        var next = Btn(challenge.HasValue ? "通常プレイを始める" : "もう一度挑戦する", Restart, true, !challenge.HasValue);
-        next.Margin = new Thickness(80, challenge.HasValue ? 12 : 40, 80, 0);
-        next.Height = 55;
-        panel.Children.Add(next);
-        if (game.S.RunResults.LastOrDefault() is RunResult run && run.Attempt == game.S.Plays)
-        {
-            var details = Btn("今回のリザルト詳細", () => SetDialog("runDetails"));
-            details.Margin = new Thickness(80, 12, 80, 0);
-            details.Height = 48;
-            panel.Children.Add(details);
-        }
-        var back = Btn("タイトルへ戻る", ReturnToTitle);
-        back.Margin = new Thickness(80, 12, 80, 0);
-        back.Height = 48;
-        panel.Children.Add(back);
-    }
-    StackPanel Modal(string title, string subtitle, double width, double height)
+    StackPanel Modal(string title, string subtitle, double width, double height, Brush? accent = null)
     {
         overlays.Children.Add(new Border { Background = B("#CA040815") });
         var panel = new StackPanel { Margin = new Thickness(30) };
-        panel.Children.Add(Label(title, 34, Gold, true));
-        panel.Children.Add(Label(subtitle, 15, Muted));
+        panel.Children.Add(Label(title, 34, accent ?? Gold, true));
+        if (subtitle.Length > 0) panel.Children.Add(Label(subtitle, 15, Muted));
         overlays.Children.Add(new Border { Width = Math.Min(width,overlays.Width-32), Height = Math.Min(height,overlays.Height-32), Background = new LinearGradientBrush(ColorOf("#202A43"), ColorOf("#0E1528"),90),
             BorderBrush = Gold, BorderThickness = new Thickness(1), Child = new ScrollViewer {Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled}, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
         return panel;

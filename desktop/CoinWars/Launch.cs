@@ -203,13 +203,6 @@ public partial class GameWindow
         AddRunDetails(panel, run);
     }
 
-    static void AddRunDetails(StackPanel panel, RunResult run)
-    {
-        panel.Children.Add(Label($"R{run.Round} / 20   HP {run.Hp}   {run.Gold} コイン  /  {RunMode(run.ChallengeNumber)} / {DifficultyName(run.Difficulty)}", 18, Gold));
-        panel.Children.Add(Label(RunScore(run), 16, Muted));
-        AddBattleHistory(panel, run.Battles);
-    }
-
     StackPanel OpenHistoryPage(string title, string backLabel, Action goBack)
     {
         launchHost.Children.Clear();
@@ -243,15 +236,19 @@ public partial class GameWindow
             panel.Children.Add(Label("完了した戦闘はまだありません。", 16, Muted));
         foreach (var battle in battles.AsEnumerable().Reverse())
         {
-            string result = battle.Outcome switch { "win" => "勝利", "lose" => "敗北", "draw" => "引き分け", _ => "結果不明" };
-            string hpText = battle.Hp is int hp
-                ? battle.HpBefore is int before ? $"HP {before} → {hp}（{hp - before:+0;-0;0}）" : $"HP {hp}"
-                : "HPの記録なし";
             string goldText = battle.Gold is int gold ? $"{gold} コイン" : "コインの記録なし";
             var card = Plate("#E3222C42", "#596680");
             card.Margin = new Thickness(0, 0, 0, 6);
             card.Padding = new Thickness(12, 8, 12, 8);
-            card.Child = Label($"R{battle.Round}   {result}   {hpText}   {goldText}", 16, White);
+            var line = new TextBlock { FontSize = 16 * textScale, Foreground = White, TextWrapping = TextWrapping.Wrap };
+            line.Inlines.Add(new System.Windows.Documents.Run($"R{battle.Round}   ") { FontWeight = FontWeights.SemiBold });
+            line.Inlines.Add(new System.Windows.Documents.Run(OutcomeName(battle.Outcome))
+            {
+                FontWeight = FontWeights.SemiBold,
+                Foreground = battle.Outcome switch { "win" => Cyan, "lose" => Loss, _ => Muted }
+            });
+            line.Inlines.Add(new System.Windows.Documents.Run($"   {BattleHp(battle)}   {goldText}"));
+            card.Child = line;
             panel.Children.Add(card);
         }
     }

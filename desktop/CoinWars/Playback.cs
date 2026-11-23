@@ -78,9 +78,11 @@ public partial class GameWindow
         overlays.Children.Clear();
         if (dialog == "runDetails" && game.S.RunResults.LastOrDefault() is RunResult run)
         {
-            var panel = Modal($"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}", "", 820, 620);
-            panel.Children.Add(Btn("終了画面に戻る [Esc]", () => SetDialog(null)));
+            var panel = Modal($"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}", "", 900, 760);
             AddRunDetails(panel, run);
+            var back = ActionButton("終了画面に戻る  [Esc]", () => SetDialog(null));
+            back.Margin = new System.Windows.Thickness(0, 18, 0, 0);
+            panel.Children.Add(back);
         }
         else
         {
