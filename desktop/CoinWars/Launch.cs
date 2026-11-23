@@ -75,12 +75,13 @@ public partial class GameWindow
         if (hasSave)
         {
             string challenge = save.ChallengeNumber is int seed ? $"  /  挑戦番号 {seed}" : "";
-            menu.Children.Add(Label($"ラウンド {save.Round} / 20  ·  HP {save.Hp}{challenge}", 15, Gold));
+            menu.Children.Add(Label($"ラウンド {save.Round} / 20  ·  HP {save.Hp}  /  {DifficultyName(save.Difficulty)}{challenge}", 15, Gold));
             if (!hasResult) AddResumeInfo(menu);
         }
         if (launchNotice is string notice)
             menu.Children.Add(Label(notice, 15, Gold));
 
+        var difficulty = AddDifficultySelector(menu, save.Difficulty, "新しい挑戦の難易度");
         var start = LaunchButton("はじめから", () =>
         {
             bool hasExistingFile = hasSave || File.Exists(savePath) || File.Exists(savePath + ".bak");
@@ -88,7 +89,7 @@ public partial class GameWindow
                 MessageBox.Show(this, "現在の進行を置き換えて、新しいゲームを始めますか？",
                     "はじめから", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
                 return;
-            EnterGame(true);
+            EnterGame(true, SelectedDifficulty(difficulty));
         }, !hasSave);
         var resume = LaunchButton(hasResult ? "前回の結果を見る" : "つづきから", () => EnterGame(false), true);
         if (hasSave) menu.Children.Add(resume);
@@ -145,7 +146,7 @@ public partial class GameWindow
 
         var state = game.S;
         panel.Children.Add(Label($"進行中   R{state.Round} / 20   HP {state.Hp}   {state.Gold} コイン", 18, Gold));
-        panel.Children.Add(Label(RunMode(state.ChallengeNumber), 15, Muted));
+        panel.Children.Add(Label($"{RunMode(state.ChallengeNumber)} / {DifficultyName(state.Difficulty)}", 15, Muted));
         AddResumeInfo(panel);
         panel.Children.Add(LaunchButton("つづきから", () => EnterGame(false), true));
         AddBattleHistory(panel, state.BattleSaves);
@@ -188,7 +189,7 @@ public partial class GameWindow
             foreach (var run in game.S.RunResults.AsEnumerable().Reverse())
             {
                 if (selectedNumber.HasValue && run.ChallengeNumber != selectedNumber) continue;
-                string summary = $"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}   R{run.Round} / 20   HP {run.Hp}\n{RunMode(run.ChallengeNumber)}   {RunScore(run)}";
+                string summary = $"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}   R{run.Round} / 20   HP {run.Hp}\n{RunMode(run.ChallengeNumber)} / {DifficultyName(run.Difficulty)}   {RunScore(run)}";
                 results.Children.Add(LaunchButton(summary, () => ShowRunDetails(hasSave, run, selectedNumber), height: 62));
             }
         }
@@ -204,7 +205,7 @@ public partial class GameWindow
 
     static void AddRunDetails(StackPanel panel, RunResult run)
     {
-        panel.Children.Add(Label($"R{run.Round} / 20   HP {run.Hp}   {run.Gold} コイン  /  {RunMode(run.ChallengeNumber)}", 18, Gold));
+        panel.Children.Add(Label($"R{run.Round} / 20   HP {run.Hp}   {run.Gold} コイン  /  {RunMode(run.ChallengeNumber)} / {DifficultyName(run.Difficulty)}", 18, Gold));
         panel.Children.Add(Label(RunScore(run), 16, Muted));
         AddBattleHistory(panel, run.Battles);
     }
@@ -255,7 +256,37 @@ public partial class GameWindow
         }
     }
 
-    void ShowScores(bool hasSave)
+    static string DifficultyName(Difficulty difficulty) => difficulty switch
+    {
+        Difficulty.Easy => "やさしい",
+        Difficulty.Hard => "むずかしい",
+        _ => "標準"
+    };
+
+    ComboBox AddDifficultySelector(StackPanel panel, Difficulty selected, string label, bool showStrength = true)
+    {
+        panel.Children.Add(Label(label, 15, White));
+        var selector = new ComboBox { MinHeight = 32, Margin = new Thickness(0, 4, 0, 8) };
+        foreach (var difficulty in new[] { Difficulty.Easy, Difficulty.Standard, Difficulty.Hard })
+        {
+            string strength = difficulty switch
+            {
+                Difficulty.Easy => "（敵のHP・攻撃 −20%）",
+                Difficulty.Hard => "（敵のHP・攻撃 ＋20%）",
+                _ => ""
+            };
+            // Keep the enum as the selection value and give the player a localized label.
+            selector.Items.Add(new ComboBoxItem { Content = DifficultyName(difficulty) + (showStrength ? strength : ""), Tag = difficulty });
+        }
+        selector.SelectedItem = selector.Items.OfType<ComboBoxItem>().First(item => Equals(item.Tag, selected));
+        System.Windows.Automation.AutomationProperties.SetName(selector, label);
+        panel.Children.Add(selector);
+        return selector;
+    }
+
+    static Difficulty SelectedDifficulty(ComboBox selector) => (Difficulty)((ComboBoxItem)selector.SelectedItem).Tag;
+
+    void ShowScores(bool hasSave, Difficulty? selectedDifficulty = null)
     {
         launchHost.Children.Clear();
         launchHost.Background = new LinearGradientBrush(ColorOf("#101725"), ColorOf("#344558"), 24);
@@ -266,20 +297,22 @@ public partial class GameWindow
         panel.Children.Add(Label("スコアランキング", 34, White, true));
 
         var state = game.S;
-        var summary = state.Scores.FirstOrDefault() is ScoreEntry best
+        var difficulty = AddDifficultySelector(panel, selectedDifficulty ?? state.Difficulty, "難易度", showStrength: false);
+        difficulty.SelectionChanged += (_, _) => ShowScores(hasSave, SelectedDifficulty(difficulty));
+        var scores = state.Scores.Where(entry => entry.Difficulty == SelectedDifficulty(difficulty))
+            .OrderByDescending(entry => entry.Points).ToList();
+        var summary = scores.FirstOrDefault() is ScoreEntry best
             ? $"最高スコア {best.Points:N0}"
             : "スコアはまだありません。";
         panel.Children.Add(Label(summary, 24, Gold, true));
-        if (state.BestRound > 0)
-            panel.Children.Add(Label($"最高到達 R{state.BestRound}  /  クリア {state.Clears}回", 15, Muted));
         panel.Children.Add(Label("このPCで終了したプレイの上位10件", 15, Muted));
         var rule = Label("到達ラウンド × 1,000 ＋ 残りHP ＋ クリア加点 1,000", 14, Muted);
         rule.Margin = new Thickness(0, 4, 0, 12);
         panel.Children.Add(rule);
 
-        for (int index = 0; index < state.Scores.Count; index++)
+        for (int index = 0; index < scores.Count; index++)
         {
-            var score = state.Scores[index];
+            var score = scores[index];
             string mode = score.ChallengeNumber is int seed ? $"挑戦番号 {seed}" : "通常プレイ";
             string result = score.Cleared ? "クリア" : $"R{score.Round}";
             var card = Plate("#E3222C42", "#596680");
@@ -294,7 +327,7 @@ public partial class GameWindow
             Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalContentAlignment = HorizontalAlignment.Stretch
         });
-        Keyboard.Focus(back);
+        Keyboard.Focus(selectedDifficulty.HasValue ? difficulty : back);
     }
 
     Button LaunchButton(string title, Action action, bool primary = false, double height = 46)

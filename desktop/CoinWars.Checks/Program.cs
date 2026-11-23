@@ -172,7 +172,38 @@ try{
  history.S=Saves.Read(historyPath)!;
  Check(history.S.RunResults.Count==2 && history.S.Scores.Count==0,"ending a run twice or reloading does not duplicate results or assign a score");
  Check(Saves.Read(rankingPath)!.RunResults.Single().Battles.Single().Round==20,"naturally finished run archives the last battle");
+ var easy = new Game(15);
+ easy.New(123, Difficulty.Easy);
+ string difficultyPath = Path.Combine(damagedDir, "difficulty.json");
+ Saves.Write(easy.S, difficultyPath);
+ Check(Saves.Read(difficultyPath)!.Difficulty == Difficulty.Easy, "difficulty survives save and reload");
+ easy.New(123, Difficulty.Hard);
+ Check(easy.S.RunResults.Last().Difficulty == Difficulty.Easy, "archived run retains chosen difficulty");
+ Check(Saves.Read(legacyPath)!.Difficulty == Difficulty.Standard, "legacy save defaults to standard difficulty");
 }finally{Directory.Delete(damagedDir,true);}
+
+var standardBattle = new Game(15);
+standardBattle.New(123);
+standardBattle.Start();
+var standardEnemy = standardBattle.Fighters.Single(fighter => !fighter.Player);
+foreach (var (difficulty, multiplier) in new[] { (Difficulty.Easy, .8), (Difficulty.Hard, 1.2) })
+{
+ var battle = new Game(15);
+ battle.New(123, difficulty);
+ battle.Start();
+ var enemy = battle.Fighters.Single(fighter => !fighter.Player);
+ Check(Math.Abs(enemy.MaxHp - standardEnemy.MaxHp * multiplier) < .001 &&
+       Math.Abs(enemy.Attack - standardEnemy.Attack * multiplier) < .001 &&
+       battle.Fighters.Single(fighter => fighter.Player).Attack == standardBattle.Fighters.Single(fighter => fighter.Player).Attack,
+       $"{difficulty} scales enemy HP and attack only");
+}
+var magic = new Game(15);
+magic.New();
+magic.S.Level = 4;
+magic.S.Board = [new() { Key = "spark" }, new() { Key = "witch" }, new() { Key = "seer" }, new() { Key = "dragon" }, null, null, null, null];
+magic.Start();
+Check(magic.Fighters.Where(fighter => fighter.Player).All(fighter =>
+      fighter.Need == 3 && fighter.SkillMultiplier == 1.35), "four mages gain 35 percent skill power at normal frequency");
 Check(new ScoreEntry(20,1,true,null).Points>new ScoreEntry(20,100,false,null).Points,"a clear outranks any non-clear");
 var challengeA=new Game();var challengeB=new Game();
 challengeA.New(123456);challengeB.New(123456);

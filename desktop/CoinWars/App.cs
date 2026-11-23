@@ -103,10 +103,10 @@ public partial class GameWindow : Window
             return false;
         }
     }
-    void EnterGame(bool newGame)
+    void EnterGame(bool newGame, Difficulty difficulty = Difficulty.Standard)
     {
         if (enteredGame) return;
-        if (newGame) game.New();
+        if (newGame) game.New(difficulty: difficulty);
         if (preview && !File.Exists(savePath))
         {
             game.S.Level = 6; game.S.Gold = 48; game.S.Round = 7;
@@ -241,12 +241,12 @@ public partial class GameWindow : Window
         if (selected is not {} x || !Planning) return;
         game.Sell(x.bench, x.index); selected = null; selectedItem=null;message=game.SoldName+"を売却しました。取り消しできます。";Sound("buy"); Persist(); Render();
     }
-    void Restart()=>RestartWith(null);
-    void RestartWith(int? challenge)
+    void Restart()=>RestartWith(null, game.S.Difficulty);
+    void RestartWith(int? challenge, Difficulty difficulty)
     {
         transitionGeneration++; timer.Stop(); ClearPresentation(); resultPending = false; paused = false;
         selected = null; selectedItem = null; enemyPreview = false; dialog = null;
-        game.New(challenge); SyncPlayback(); Persist(); Render(); Sound("start");
+        game.New(challenge, difficulty); SyncPlayback(); Persist(); Render(); Sound("start");
     }
     void OnKey(object sender, KeyEventArgs e)
     {
@@ -471,14 +471,14 @@ public partial class GameWindow : Window
         bool win = !abandoned && game.S.FinalScore().Cleared;
         int? challenge = game.S.ChallengeNumber;
         string title = win ? "TRIUMPH" : abandoned ? "途中終了" : "GAME OVER";
-        var panel = Modal(title, win ? "全20ラウンド制覇" : "", 720, challenge.HasValue ? 510 : 450);
+        var panel = Modal(title, win ? $"全20ラウンド制覇 / {DifficultyName(game.S.Difficulty)}" : DifficultyName(game.S.Difficulty), 720, challenge.HasValue ? 510 : 450);
         panel.Children.Add(Label($"到達 {game.S.Round} ラウンド     HP {game.S.Hp}     コイン {game.S.Gold}", 22, White));
         if (!abandoned) panel.Children.Add(Label($"今回のスコア {game.S.FinalScore().Points:N0} pt", 22, Gold, true));
         panel.Children.Add(Label($"自己ベスト R{game.S.BestRound} / クリア {game.S.Clears}回", 15, Muted));
         if (challenge is int seed)
         {
             panel.Children.Add(Label($"チャレンジ番号 {seed}", 20, Gold));
-            var retry = Btn("同じ番号で再挑戦", () => RestartWith(seed), true, true);
+            var retry = Btn("同じ番号で再挑戦", () => RestartWith(seed, game.S.Difficulty), true, true);
             retry.Margin = new Thickness(80, 24, 80, 0);
             retry.Height = 55;
             panel.Children.Add(retry);
@@ -533,7 +533,8 @@ public partial class GameWindow : Window
         else if (dialog == "restart")
         {
             panel.Children.Add(Label("進行中のゲームを終了して、最初から始めますか？\n自己ベストとクリア回数は引き継ぎます。",22,White));
-            panel.Children.Add(Btn("新しいゲームを開始",Restart,true,true));
+            var difficulty = AddDifficultySelector(panel, game.S.Difficulty, "新しい挑戦の難易度");
+            panel.Children.Add(Btn("新しいゲームを開始", () => RestartWith(null, SelectedDifficulty(difficulty)), true, true));
         }
         else
         {
@@ -542,10 +543,11 @@ public partial class GameWindow : Window
             panel.Children.Add(Btn(preferences.Muted ? "効果音：OFF" : "効果音：ON", ToggleMute));
             panel.Children.Add(Btn(preferences.ReducedMotion ? "演出：控えめ" : "演出：通常", () => { preferences=preferences with {ReducedMotion=!preferences.ReducedMotion};SavePreferences();RenderOverlays(); }));
             if(game.S.ChallengeNumber is int active)panel.Children.Add(Label($"チャレンジ番号 {active}",18,Gold));
+            var difficulty = AddDifficultySelector(panel, game.S.Difficulty, "番号で挑戦するときの難易度");
             var number=new TextBox {MaxLength=9,FontSize=20};
             panel.Children.Add(Label("友人と同じ番号で挑戦（1～9桁）。開始すると現在の進行を置き換えます。",16,White));
             panel.Children.Add(number);
-            var challengeStart=Btn("この番号で最初から挑戦",()=>{if(int.TryParse(number.Text,out int seed))RestartWith(seed);},false);
+            var challengeStart=Btn("この番号で最初から挑戦",()=>{if(int.TryParse(number.Text,out int seed))RestartWith(seed, SelectedDifficulty(difficulty));},false);
             number.TextChanged+=(sender,args)=>challengeStart.IsEnabled=Planning && int.TryParse(number.Text,System.Globalization.NumberStyles.None,null,out _);
             panel.Children.Add(challengeStart);
             panel.Children.Add(Btn("最初から", () => SetDialog("restart"),game.S.Phase!="battle"&&!resultPending));

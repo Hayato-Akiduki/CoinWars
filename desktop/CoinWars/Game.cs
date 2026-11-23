@@ -8,14 +8,17 @@ public class Unit {
  public List<string> Items {get;set;}=[]; public List<int> Equipped {get;set;}=[];
 }
 public record Offer(string Kind,string Title,string Description,string Argument="");
-public record ScoreEntry(int Round, int Hp, bool Cleared, int? ChallengeNumber)
+public enum Difficulty { Standard, Easy, Hard }
+
+public record ScoreEntry(int Round, int Hp, bool Cleared, int? ChallengeNumber, Difficulty Difficulty = Difficulty.Standard)
 {
  [System.Text.Json.Serialization.JsonIgnore]
  public int Points => Round * 1000 + Hp + (Cleared ? 1000 : 0);
 }
 public record BattleSave(int Round, string Outcome, int? Hp, int? Gold, int? HpBefore = null);
-public record RunResult(int Attempt, string Outcome, int Round, int Hp, int Gold, int? ChallengeNumber, List<BattleSave> Battles);
+public record RunResult(int Attempt, string Outcome, int Round, int Hp, int Gold, int? ChallengeNumber, List<BattleSave> Battles, Difficulty Difficulty = Difficulty.Standard);
 public class State {
+ public Difficulty Difficulty {get;set;}
  public int? ChallengeNumber {get;set;}
  public uint ChallengeState {get;set;}
  public int Version {get;set;}=1;
@@ -23,7 +26,7 @@ public class State {
  public List<ScoreEntry> Scores {get;set;}=[];
  public List<BattleSave> BattleSaves {get;set;}=[];
  public List<RunResult> RunResults {get;set;}=[];
- public ScoreEntry FinalScore() => new(Round, Hp, Round == 20 && Hp > 0 && Results.LastOrDefault() == "win", ChallengeNumber);
+ public ScoreEntry FinalScore() => new(Round, Hp, Round == 20 && Hp > 0 && Results.LastOrDefault() == "win", ChallengeNumber, Difficulty);
  public int Hp {get;set;}=100; public int Gold {get;set;}=6; public int Level {get;set;}=1; public int Exp {get;set;}
  public int Round {get;set;}=1; public int Streak {get;set;} public int InterestCap {get;set;}=5; public int Debt {get;set;}
  public bool Locked {get;set;} public string Phase {get;set;}="plan";
@@ -78,16 +81,17 @@ public class Game {
   return value/4294967296.0;
  }
  int NextIndex(int limit=int.MaxValue)=>S.ChallengeNumber==null?rng.Next(limit):(int)(NextFraction()*limit);
- public void New(int? challenge=null){
+ public void New(int? challenge=null, Difficulty difficulty=Difficulty.Standard){
+  if (!Enum.IsDefined(difficulty)) throw new ArgumentOutOfRangeException(nameof(difficulty));
   EndRun();
   FirstFallen=null;LastCue=null;LastMerge=null;
-  S=new(){ChallengeNumber=challenge,ChallengeState=(uint)(challenge??0)+1,Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp,Scores=S.Scores,RunResults=S.RunResults};
+  S=new(){Difficulty=difficulty,ChallengeNumber=challenge,ChallengeState=(uint)(challenge??0)+1,Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp,Scores=S.Scores,RunResults=S.RunResults};
   Fighters=[];S.Board[1]=new(); Roll(); MakeEnemy(); Log("ユニットを購入し、選択→空きマスで配置。準備できたら戦闘開始。");
  }
  public void EndRun()
  {
   if (S.Plays == 0 || S.Phase is "over" or "battle") return;
-  S.RunResults.Add(new(S.Plays, "abandoned", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves]));
+  S.RunResults.Add(new(S.Plays, "abandoned", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves], S.Difficulty));
   S.Phase = "over";
  }
  public void Log(string s){S.Log.Insert(0,s);if(S.Log.Count>60)S.Log.RemoveAt(60);}
@@ -188,10 +192,16 @@ public class Game {
   var counts=Counts(board,player);int knight=Tier("knight",counts),guard=Tier("guard",counts),wind=Tier("wind",counts),mage=Tier("mage",counts),rich=Tier("rich",counts);
   for(int i=0;i<board.Length;i++){if(board[i] is not Unit u)continue;var d=Data.Def(u);bool Has(string t)=>d.Traits.Contains(t);int N(string k)=>u.Items.Count(x=>x==k);
    double hp=d.Hp*Data.Mult(u.Star)*(player?1+S.HpBuff:1),atk=d.Atk*Data.Mult(u.Star)*(player?1+S.AttackBuff:1),spd=d.Spd,sm=1;
-   if(Has("knight"))atk*=new[]{1,1.15,1.4}[knight];if(Has("guard"))hp*=new[]{1,1.2,1.5}[guard];if(Has("wind"))spd*=new[]{1,1.2,1.5}[wind];if(Has("mage"))sm=new[]{1,1.3,1.8}[mage];
+   if(Has("knight"))atk*=new[]{1,1.15,1.4}[knight];if(Has("guard"))hp*=new[]{1,1.2,1.5}[guard];if(Has("wind"))spd*=new[]{1,1.2,1.5}[wind];if(Has("mage"))sm=new[]{1,1.15,1.35}[mage];
    if(Has("rich")&&rich>=2)atk*=1+Math.Min(.5,(player?S.Gold:20+S.Round*2)/100.0)*(rich==3?2:1);
    hp*=1+.25*N("armor");atk*=1+.2*N("blade");spd*=1+.15*N("boots");sm+=.35*N("tome");
-   int need=Has("mage")&&mage>=2?2:3;
+   if (!player)
+   {
+    double strength = S.Difficulty switch { Difficulty.Easy => .8, Difficulty.Hard => 1.2, _ => 1 };
+    hp *= strength;
+    atk *= strength;
+   }
+   const int need = 3;
    yield return new(){Unit=u,Player=player,Slot=i,Hp=hp,MaxHp=hp,Attack=atk,Speed=spd,SkillMultiplier=sm,Reduction=Has("knight")&&knight==2?.15:0,
    Gauge=Has("wind")&&wind==2?100:NextFraction()*30,Shield=hp*(.3*N("amulet")+(guard==2?.15:0)),Need=need,Energy=Math.Min(need-1,2*N("crystal")),Steal=.2*N("fang"),Purse=N("purse")};
   }
@@ -231,9 +241,10 @@ public class Game {
   if(S.Hp<=0||S.Round==20){
    var score = S.FinalScore();
    if(score.Cleared){S.Clears++;S.BestClearHp=Math.Max(S.BestClearHp,S.Hp);}
-   S.Scores = S.Scores.Append(score).OrderByDescending(entry => entry.Points).Take(10).ToList();
+   S.Scores = S.Scores.Append(score).GroupBy(entry => entry.Difficulty)
+       .SelectMany(group => group.OrderByDescending(entry => entry.Points).Take(10)).ToList();
    S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold, hpBefore));
-   S.RunResults.Add(new(S.Plays, score.Cleared ? "clear" : "defeat", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves]));
+   S.RunResults.Add(new(S.Plays, score.Cleared ? "clear" : "defeat", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves], S.Difficulty));
    S.Phase="over";Log(score.Cleared?"全20ラウンド制覇！":"ゲーム終了");return;
   }
   int income=Income(win);S.Gold=Math.Max(0,S.Gold+income);if(S.Debt>0)S.Debt--;Log($"収入 {income:+0;-0;0} コイン");
@@ -292,18 +303,18 @@ public static class Saves {
   var s=JsonSerializer.Deserialize<State>(File.ReadAllText(path))??throw new InvalidDataException("空のセーブです");
   if(s.Board==null||s.Bench==null||s.Enemy==null||s.Shop==null||s.Items==null||s.Emblems==null||s.Results==null||s.Log==null||s.Offers==null)
    throw new InvalidDataException("セーブの必須項目がありません");
-  if(s.Version!=1||s.Board.Length!=8||s.Bench.Length!=8||s.Enemy.Length!=8||s.Shop.Length!=5||s.Level<1||s.Level>9||s.Round<1||s.Round>20||s.Hp<0||s.Hp>100||s.Gold<0||s.Exp<0||s.InterestCap<0||s.Debt<0||!new[]{"plan","event","over"}.Contains(s.Phase))throw new InvalidDataException("セーブ形式が不正です");
+  if(!Enum.IsDefined(s.Difficulty)||s.Version!=1||s.Board.Length!=8||s.Bench.Length!=8||s.Enemy.Length!=8||s.Shop.Length!=5||s.Level<1||s.Level>9||s.Round<1||s.Round>20||s.Hp<0||s.Hp>100||s.Gold<0||s.Exp<0||s.InterestCap<0||s.Debt<0||!new[]{"plan","event","over"}.Contains(s.Phase))throw new InvalidDataException("セーブ形式が不正です");
   if(!s.Enemy.OfType<Unit>().Any()||!double.IsFinite(s.AttackBuff)||s.AttackBuff<0||!double.IsFinite(s.HpBuff)||s.HpBuff<0)throw new InvalidDataException("戦闘データが不正です");
   foreach(var u in s.Board.Concat(s.Bench).Concat(s.Enemy).OfType<Unit>())if(!Data.Units.Any(d=>d.Key==u.Key)||u.Star<1||u.Star>3||u.Items.Count>3||u.Items.Count!=u.Equipped.Count||u.Items.Any(k=>!Data.Items.Any(d=>d.Key==k)))throw new InvalidDataException("ユニットデータが不正です");
   if(s.Shop.Any(k=>k!=null&&!Data.Units.Any(d=>d.Key==k))||s.Items.Count>10||s.Items.Any(k=>!Data.Items.Any(d=>d.Key==k))||s.Emblems.Any(k=>!Data.Traits.ContainsKey(k.Key)||k.Value<0)||s.Board.OfType<Unit>().Count()>Math.Min(8,s.Level))throw new InvalidDataException("編成データが不正です");
   if(s.Phase=="event"&&(s.Offers.Count!=3||s.Offers.Any(o=>!new[]{"cash","loan","interest","scout","attack","hp","items","heal","exp","emblem","gamble"}.Contains(o.Kind)||(o.Kind=="scout"&&!Data.Units.Any(d=>d.Key==o.Argument))||(o.Kind=="emblem"&&!Data.Traits.ContainsKey(o.Argument)))))throw new InvalidDataException("イベントデータが不正です");
-  if (s.Scores == null || s.Scores.Count > 10 ||
-      s.Scores.Any(entry => entry == null || entry.Round is < 1 or > 20 || entry.Hp is < 0 or > 100 ||
+  if (s.Scores == null || s.Scores.GroupBy(entry => entry?.Difficulty).Any(group => group.Count() > 10) ||
+      s.Scores.Any(entry => entry == null || !Enum.IsDefined(entry.Difficulty) || entry.Round is < 1 or > 20 || entry.Hp is < 0 or > 100 ||
           (entry.Cleared && (entry.Round != 20 || entry.Hp == 0))))
    throw new InvalidDataException("ランキングデータが不正です");
   if (s.BattleSaves == null || s.RunResults == null ||
       s.BattleSaves.Any(entry => entry == null) ||
-      s.RunResults.Any(entry => entry?.Battles == null || entry.Battles.Any(battle => battle == null)))
+      s.RunResults.Any(entry => entry?.Battles == null || !Enum.IsDefined(entry.Difficulty) || entry.Battles.Any(battle => battle == null)))
    throw new InvalidDataException("戦闘履歴が不正です");
   if (s.BattleSaves.Count == 0 && s.Results.Count > 0)
   {
@@ -317,9 +328,9 @@ public static class Saves {
    var score = s.FinalScore();
    var last = s.RunResults.LastOrDefault();
    if (last?.Attempt != s.Plays)
-    s.RunResults.Add(new(s.Plays, score.Cleared ? "clear" : "defeat", s.Round, s.Hp, s.Gold, s.ChallengeNumber, [..s.BattleSaves]));
+    s.RunResults.Add(new(s.Plays, score.Cleared ? "clear" : "defeat", s.Round, s.Hp, s.Gold, s.ChallengeNumber, [..s.BattleSaves], s.Difficulty));
    bool abandoned = last?.Attempt == s.Plays && last.Outcome == "abandoned";
-   if (s.Scores.Count == 0 && !abandoned) s.Scores.Add(score);
+   if (!s.Scores.Any(entry => entry.Difficulty == score.Difficulty) && !abandoned) s.Scores.Add(score);
   }
   return s;
  }
