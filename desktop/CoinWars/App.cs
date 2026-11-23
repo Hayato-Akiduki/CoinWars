@@ -64,19 +64,47 @@ public partial class GameWindow : Window
         var root=new Grid();root.Children.Add(viewport);
         root.Children.Add(undoHost);
         modalHost.Children.Add(new Viewbox {Stretch=Stretch.Uniform,Child=overlays});root.Children.Add(modalHost);
+        root.Children.Add(launchHost);
         Content=root;
         if(preview&&Environment.GetCommandLineArgs().Contains("--small")){Width=Math.Min(960,SystemParameters.WorkArea.Width);Height=Math.Min(640,SystemParameters.WorkArea.Height);}
+        try { if (File.Exists(SettingsPath)) preferences = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(SettingsPath)) ?? new(); } catch { }
+        textScale = (preferences.TextPercent is 115 or 130 ? preferences.TextPercent : 100) / 100.0;
+        SetSpeed();
+        timer.Tick += (_, _) => Tick();
+        Closing += (_, _) => { transitionGeneration++; timer.Stop(); ClearPresentation(); Persist(); };
+        PreviewKeyDown += OnKey;
+        MouseRightButtonUp += (_,e) => { if(dialog!=null)SetDialog(null);else if(enteredGame && Planning){selected=null;selectedItem=null;Render();}e.Handled=true; };
+        SizeChanged += (_,_) => { if(enteredGame && !ShowingBattle&&!animating&&CompactLayout!=WantsCompactLayout)Render(); };
+        if (preview)
+        {
+            EnterGame(!LoadLaunchSave());
+        }
+        else
+        {
+            ShowSplash();
+            ContentRendered += OnLaunchRendered;
+        }
+    }
+    bool LoadLaunchSave()
+    {
         try
         {
             var loaded = Saves.ReadWithRecovery(savePath);
-            if (loaded.State != null) game.S = loaded.State; else game.New();
-            if (loaded.Recovered) message = "バックアップからセーブを復元しました。";
+            if (loaded.State == null) return false;
+            game.S = loaded.State;
+            if (loaded.Recovered) message = launchNotice = "バックアップからセーブを復元しました。";
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            game.New(); message = "保存データを復元できませんでした：" + ex.Message;
-            try { Saves.ArchiveInvalid(savePath); } catch { }
+            message = launchNotice = "保存データを復元できませんでした。";
+            return false;
         }
+    }
+    void EnterGame(bool newGame)
+    {
+        if (enteredGame) return;
+        if (newGame) game.New();
         if (preview && !File.Exists(savePath))
         {
             game.S.Level = 6; game.S.Gold = 48; game.S.Round = 7;
@@ -85,19 +113,17 @@ public partial class GameWindow : Window
             game.S.Items = ["blade","tome","amulet"];
             game.Roll(); game.MakeEnemy();
         }
-        try { if (File.Exists(SettingsPath)) preferences = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(SettingsPath)) ?? new(); } catch { }
-        textScale = (preferences.TextPercent is 115 or 130 ? preferences.TextPercent : 100) / 100.0;
-        SetSpeed();
-        timer.Tick += (_, _) => Tick();
-        Closing += (_, _) => { transitionGeneration++; timer.Stop(); ClearPresentation(); Persist(); };
-        PreviewKeyDown += OnKey;
-        MouseRightButtonUp += (_,e) => { if(dialog!=null)SetDialog(null);else if(Planning){selected=null;selectedItem=null;Render();}e.Handled=true; };
-        SizeChanged += (_,_) => { if(!ShowingBattle&&!animating&&CompactLayout!=WantsCompactLayout)Render(); };
-        Render(); Persist();
+        enteredGame = true;
+        launchHost.Children.Clear();
+        launchHost.Visibility = Visibility.Collapsed;
+        Keyboard.ClearFocus();
+        if (newGame || preview) Persist();
+        Render();
     }
     string SettingsPath => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(savePath)!, "preferences.json");
     void Persist()
     {
+        if (!enteredGame) return;
         try { Saves.Write(game.S, savePath); }
         catch (Exception ex) { message = "保存できません：" + ex.Message; }
     }
@@ -217,6 +243,7 @@ public partial class GameWindow : Window
     }
     void OnKey(object sender, KeyEventArgs e)
     {
+        if (!enteredGame) return;
         if (e.IsRepeat || (Keyboard.FocusedElement is TextBox && e.Key!=Key.Escape)) return;
         if (e.Key == Key.M) { ToggleMute(); e.Handled = true; return; }
         if (e.Key == Key.P && dialog == null) { TogglePause(); e.Handled = true; return; }
