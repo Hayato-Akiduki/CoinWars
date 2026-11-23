@@ -12,6 +12,7 @@ public partial class GameWindow
     readonly Grid launchHost = new();
     bool enteredGame;
     string? launchNotice;
+    DateTime? lastSavedAt;
 
     void ShowSplash()
     {
@@ -75,6 +76,7 @@ public partial class GameWindow
         {
             string challenge = save.ChallengeNumber is int seed ? $"  /  挑戦番号 {seed}" : "";
             menu.Children.Add(Label($"ラウンド {save.Round} / 20  ·  HP {save.Hp}{challenge}", 15, Gold));
+            if (!hasResult) AddResumeInfo(menu);
         }
         if (launchNotice is string notice)
             menu.Children.Add(Label(notice, 15, Gold));
@@ -141,26 +143,66 @@ public partial class GameWindow
         var state = game.S;
         panel.Children.Add(Label($"進行中   R{state.Round} / 20   HP {state.Hp}   {state.Gold} コイン", 18, Gold));
         panel.Children.Add(Label(RunMode(state.ChallengeNumber), 15, Muted));
+        AddResumeInfo(panel);
         panel.Children.Add(LaunchButton("つづきから", () => EnterGame(false), true));
         AddBattleHistory(panel, state.BattleSaves);
     }
 
-    void ShowRunResults(bool hasSave)
+    void AddResumeInfo(StackPanel panel)
+    {
+        var state = game.S;
+        string stage = state.Phase == "event" ? "投資イベント" : "編成準備";
+        panel.Children.Add(Label($"R{state.Round}の{stage}から再開", 15, White));
+        if (lastSavedAt is DateTime savedAt)
+            panel.Children.Add(Label($"保存日時 {savedAt:yyyy/MM/dd HH:mm}", 14, Muted));
+    }
+
+    void ShowRunResults(bool hasSave, int? challengeFilter = null)
     {
         var panel = OpenHistoryPage("リザルト一覧", "タイトルに戻る", () => ShowTitle(hasSave));
         if (game.S.RunResults.Count == 0)
-            panel.Children.Add(Label("終了した挑戦はまだありません。", 18, Muted));
-        foreach (var run in game.S.RunResults.AsEnumerable().Reverse())
         {
-            string summary = $"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}   R{run.Round} / 20   HP {run.Hp}";
-            panel.Children.Add(LaunchButton(summary, () => ShowRunDetails(hasSave, run)));
+            panel.Children.Add(Label("終了した挑戦はまだありません。", 18, Muted));
+            return;
         }
+
+        var numbers = game.S.RunResults.Select(run => run.ChallengeNumber).OfType<int>().Distinct().Order();
+        var filter = new ComboBox { FontSize = 16 * textScale, Margin = new Thickness(0, 4, 0, 12) };
+        panel.Children.Add(Label("チャレンジ番号で絞り込む", 15, Muted));
+        panel.Children.Add(filter);
+        var all = new ComboBoxItem { Content = "すべての挑戦" };
+        filter.Items.Add(all);
+        foreach (int number in numbers)
+            filter.Items.Add(new ComboBoxItem { Content = RunMode(number), Tag = number });
+        filter.SelectedItem = filter.Items.OfType<ComboBoxItem>().FirstOrDefault(item => Equals(item.Tag, challengeFilter)) ?? all;
+
+        var results = new StackPanel();
+        panel.Children.Add(results);
+        void UpdateResults()
+        {
+            int? selectedNumber = (filter.SelectedItem as ComboBoxItem)?.Tag as int?;
+            results.Children.Clear();
+            foreach (var run in game.S.RunResults.AsEnumerable().Reverse())
+            {
+                if (selectedNumber.HasValue && run.ChallengeNumber != selectedNumber) continue;
+                string summary = $"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}   R{run.Round} / 20   HP {run.Hp}\n{RunMode(run.ChallengeNumber)}   {RunScore(run)}";
+                results.Children.Add(LaunchButton(summary, () => ShowRunDetails(hasSave, run, selectedNumber), height: 62));
+            }
+        }
+        filter.SelectionChanged += (_, _) => UpdateResults();
+        UpdateResults();
     }
 
-    void ShowRunDetails(bool hasSave, RunResult run)
+    void ShowRunDetails(bool hasSave, RunResult run, int? challengeFilter)
     {
-        var panel = OpenHistoryPage($"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}", "リザルト一覧に戻る", () => ShowRunResults(hasSave));
-        panel.Children.Add(Label($"R{run.Round} / 20   HP {run.Hp}   {run.Gold} コイン   {RunMode(run.ChallengeNumber)}", 18, Gold));
+        var panel = OpenHistoryPage($"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}", "リザルト一覧に戻る", () => ShowRunResults(hasSave, challengeFilter));
+        AddRunDetails(panel, run);
+    }
+
+    static void AddRunDetails(StackPanel panel, RunResult run)
+    {
+        panel.Children.Add(Label($"R{run.Round} / 20   HP {run.Hp}   {run.Gold} コイン  /  {RunMode(run.ChallengeNumber)}", 18, Gold));
+        panel.Children.Add(Label(RunScore(run), 16, Muted));
         AddBattleHistory(panel, run.Battles);
     }
 
@@ -184,6 +226,9 @@ public partial class GameWindow
 
     static string RunMode(int? number) => number is int seed ? $"挑戦番号 {seed}" : "通常プレイ";
     static string RunOutcome(string outcome) => outcome switch { "clear" => "クリア", "abandoned" => "途中終了", _ => "敗北" };
+    static string RunScore(RunResult run) => run.Outcome == "abandoned"
+        ? "スコアなし"
+        : $"{new ScoreEntry(run.Round, run.Hp, run.Outcome == "clear", run.ChallengeNumber).Points:N0} pt";
 
     static void AddBattleHistory(StackPanel panel, List<BattleSave> battles)
     {
@@ -195,11 +240,14 @@ public partial class GameWindow
         foreach (var battle in battles.AsEnumerable().Reverse())
         {
             string result = battle.Outcome switch { "win" => "勝利", "lose" => "敗北", "draw" => "引き分け", _ => "結果不明" };
-            string details = battle.Hp is int hp && battle.Gold is int gold ? $"   HP {hp}   {gold} コイン" : "   HP・コインの記録なし";
+            string hpText = battle.Hp is int hp
+                ? battle.HpBefore is int before ? $"HP {before} → {hp}（{hp - before:+0;-0;0}）" : $"HP {hp}"
+                : "HPの記録なし";
+            string goldText = battle.Gold is int gold ? $"{gold} コイン" : "コインの記録なし";
             var card = Plate("#E3222C42", "#596680");
             card.Margin = new Thickness(0, 0, 0, 6);
             card.Padding = new Thickness(12, 8, 12, 8);
-            card.Child = Label($"R{battle.Round}   {result}{details}", 16, White);
+            card.Child = Label($"R{battle.Round}   {result}   {hpText}   {goldText}", 16, White);
             panel.Children.Add(card);
         }
     }
@@ -246,10 +294,10 @@ public partial class GameWindow
         Keyboard.Focus(back);
     }
 
-    Button LaunchButton(string title, Action action, bool primary = false)
+    Button LaunchButton(string title, Action action, bool primary = false, double height = 46)
     {
         var button = Btn(title, action, primary: primary);
-        button.Height = 46;
+        button.Height = height;
         button.Margin = new Thickness(0, 8, 0, 0);
         button.Content = Label(title, 18, primary ? B("#14213A") : White, primary);
         return button;

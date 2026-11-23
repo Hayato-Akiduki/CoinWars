@@ -155,13 +155,13 @@ try{
  File.WriteAllText(legacyPath,savedJson.ToJsonString());
  Check(Saves.Read(legacyPath)!.Scores.SequenceEqual([finalScore]),"legacy finished save imports the last result");
 
- var history=new Game(17);history.New(321);
+ var history=new Game(17);history.New(321);history.S.Hp=83;
  history.Start();while(history.S.Phase=="battle")history.Step();
  string historyPath=Path.Combine(damagedDir,"history.json");
  Saves.Write(history.S,historyPath);
  history.S=Saves.Read(historyPath)!;
- Check(history.S.BattleSaves.Count==1 && history.S.BattleSaves[0] is {Round:1,Hp:not null,Gold:not null} battle &&
-       battle.Outcome==history.S.Results[0],"completed battle is saved with its round, outcome, HP and gold");
+ Check(history.S.BattleSaves.Count==1 && history.S.BattleSaves[0] is {Round:1,HpBefore:83,Hp:not null,Gold:not null} battle &&
+       battle.Hp==history.S.Hp && battle.Outcome==history.S.Results[0],"completed battle saves HP before and after combat with the outcome and gold");
  var savedBattle=history.S.BattleSaves.Single();
  history.New();
  Check(history.S.BattleSaves.Count==0 && history.S.RunResults.Single() is {Outcome:"abandoned",ChallengeNumber:321} abandoned &&

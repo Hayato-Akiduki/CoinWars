@@ -92,6 +92,7 @@ public partial class GameWindow : Window
             var loaded = Saves.ReadWithRecovery(savePath);
             if (loaded.State == null) return false;
             game.S = loaded.State;
+            lastSavedAt = File.GetLastWriteTime(loaded.Recovered ? savePath + ".bak" : savePath);
             if (loaded.Recovered) message = launchNotice = "バックアップからセーブを復元しました。";
             return true;
         }
@@ -123,8 +124,13 @@ public partial class GameWindow : Window
     string SettingsPath => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(savePath)!, "preferences.json");
     bool Persist()
     {
-        if (!enteredGame) return true;
-        try { Saves.Write(game.S, savePath); return true; }
+        if (!enteredGame || game.S.Phase == "battle") return true;
+        try
+        {
+            Saves.Write(game.S, savePath);
+            lastSavedAt = DateTime.Now;
+            return true;
+        }
         catch (Exception ex) { message = "保存できません：" + ex.Message; return false; }
     }
     void SavePreferences()
@@ -480,6 +486,13 @@ public partial class GameWindow : Window
         next.Margin = new Thickness(80, challenge.HasValue ? 12 : 40, 80, 0);
         next.Height = 55;
         panel.Children.Add(next);
+        if (game.S.RunResults.LastOrDefault() is RunResult run && run.Attempt == game.S.Plays)
+        {
+            var details = Btn("今回のリザルト詳細", () => SetDialog("runDetails"));
+            details.Margin = new Thickness(80, 12, 80, 0);
+            details.Height = 48;
+            panel.Children.Add(details);
+        }
         var back = Btn("タイトルへ戻る", ReturnToTitle);
         back.Margin = new Thickness(80, 12, 80, 0);
         back.Height = 48;

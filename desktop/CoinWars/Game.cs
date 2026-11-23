@@ -13,7 +13,7 @@ public record ScoreEntry(int Round, int Hp, bool Cleared, int? ChallengeNumber)
  [System.Text.Json.Serialization.JsonIgnore]
  public int Points => Round * 1000 + Hp + (Cleared ? 1000 : 0);
 }
-public record BattleSave(int Round, string Outcome, int? Hp, int? Gold);
+public record BattleSave(int Round, string Outcome, int? Hp, int? Gold, int? HpBefore = null);
 public record RunResult(int Attempt, string Outcome, int Round, int Hp, int Gold, int? ChallengeNumber, List<BattleSave> Battles);
 public class State {
  public int? ChallengeNumber {get;set;}
@@ -222,6 +222,7 @@ public class Game {
   if(!p||!e||Actions>240)End(!e&&p?"win":!p?"lose":"draw");
  }
  void End(string result){
+  int hpBefore = S.Hp;
   bool win=result=="win",strong=S.Round%5==0;var mvp=Fighters.Where(f=>f.Player).MaxBy(f=>f.Dealt);Log("最初に倒れた味方："+(FirstFallen??"なし"));Log($"MVP：{Data.Def(mvp!.Unit).Name} / {mvp.Dealt:0}ダメージ");
   if(win){S.Streak=S.Streak>0?S.Streak+1:1;AddItem();if(strong){AddItem();S.Gold+=5;}Log("勝利！");}
   else {int damage=2+S.Round/3+Fighters.Where(f=>!f.Player&&f.Alive).Sum(f=>f.Unit.Star+Data.Def(f.Unit).Cost/2);if(result=="draw")damage=(int)Math.Ceiling(damage/2.0);
@@ -231,12 +232,12 @@ public class Game {
    var score = S.FinalScore();
    if(score.Cleared){S.Clears++;S.BestClearHp=Math.Max(S.BestClearHp,S.Hp);}
    S.Scores = S.Scores.Append(score).OrderByDescending(entry => entry.Points).Take(10).ToList();
-   S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold));
+   S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold, hpBefore));
    S.RunResults.Add(new(S.Plays, score.Cleared ? "clear" : "defeat", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves]));
    S.Phase="over";Log(score.Cleared?"全20ラウンド制覇！":"ゲーム終了");return;
   }
   int income=Income(win);S.Gold=Math.Max(0,S.Gold+income);if(S.Debt>0)S.Debt--;Log($"収入 {income:+0;-0;0} コイン");
-  S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold));
+  S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold, hpBefore));
   S.Round++;AddExp(2);if(!S.Locked)Roll();MakeEnemy();S.Phase="plan";if(new[]{2,5,8,11,14,17}.Contains(S.Round))CreateOffers();
  }
 }
@@ -317,7 +318,8 @@ public static class Saves {
    var last = s.RunResults.LastOrDefault();
    if (last?.Attempt != s.Plays)
     s.RunResults.Add(new(s.Plays, score.Cleared ? "clear" : "defeat", s.Round, s.Hp, s.Gold, s.ChallengeNumber, [..s.BattleSaves]));
-   if (s.Scores.Count == 0 && last?.Outcome != "abandoned") s.Scores.Add(score);
+   bool abandoned = last?.Attempt == s.Plays && last.Outcome == "abandoned";
+   if (s.Scores.Count == 0 && !abandoned) s.Scores.Add(score);
   }
   return s;
  }

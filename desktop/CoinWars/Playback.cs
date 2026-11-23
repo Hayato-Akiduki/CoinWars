@@ -76,9 +76,18 @@ public partial class GameWindow
     void RenderOverlays()
     {
         overlays.Children.Clear();
-        if (!resultPending && game.S.Phase == "event") EventDialog();
-        if (!resultPending && game.S.Phase == "over") EndDialog();
-        if (dialog != null) UtilityDialog();
+        if (dialog == "runDetails" && game.S.RunResults.LastOrDefault() is RunResult run)
+        {
+            var panel = Modal($"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}", "", 820, 620);
+            panel.Children.Add(Btn("終了画面に戻る [Esc]", () => SetDialog(null)));
+            AddRunDetails(panel, run);
+        }
+        else
+        {
+            if (!resultPending && game.S.Phase == "event") EventDialog();
+            if (!resultPending && game.S.Phase == "over") EndDialog();
+            if (dialog != null) UtilityDialog();
+        }
         modalHost.IsHitTestVisible=overlays.Children.Count>0;
         modalHost.Background=overlays.Children.Count>0?System.Windows.Media.Brushes.Transparent:null;
     }
