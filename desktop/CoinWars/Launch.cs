@@ -91,6 +91,7 @@ public partial class GameWindow
         var resume = LaunchButton(hasResult ? "前回の結果を見る" : "つづきから", () => EnterGame(false), true);
         if (hasSave) menu.Children.Add(resume);
         menu.Children.Add(start);
+        menu.Children.Add(LaunchButton("スコアランキング", () => ShowScores(hasSave)));
         menu.Children.Add(LaunchButton("終了", Close));
 
         launchHost.Children.Add(new ScrollViewer
@@ -99,6 +100,48 @@ public partial class GameWindow
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         });
         Keyboard.Focus(hasSave ? resume : start);
+    }
+
+    void ShowScores(bool hasSave)
+    {
+        launchHost.Children.Clear();
+        launchHost.Background = new LinearGradientBrush(ColorOf("#101725"), ColorOf("#344558"), 24);
+        var panel = new StackPanel { MaxWidth = 640, Margin = new Thickness(32, 24, 32, 24) };
+        var back = LaunchButton("タイトルに戻る", () => ShowTitle(hasSave));
+        back.HorizontalAlignment = HorizontalAlignment.Left;
+        panel.Children.Add(back);
+        panel.Children.Add(Label("スコアランキング", 34, White, true));
+
+        var state = game.S;
+        var summary = state.Scores.FirstOrDefault() is ScoreEntry best
+            ? $"最高スコア {best.Points:N0}"
+            : "スコアはまだありません。";
+        panel.Children.Add(Label(summary, 24, Gold, true));
+        if (state.BestRound > 0)
+            panel.Children.Add(Label($"最高到達 R{state.BestRound}  /  クリア {state.Clears}回", 15, Muted));
+        panel.Children.Add(Label("このPCで終了したプレイの上位10件", 15, Muted));
+        var rule = Label("到達ラウンド × 1,000 ＋ 残りHP ＋ クリア加点 1,000", 14, Muted);
+        rule.Margin = new Thickness(0, 4, 0, 12);
+        panel.Children.Add(rule);
+
+        for (int index = 0; index < state.Scores.Count; index++)
+        {
+            var score = state.Scores[index];
+            string mode = score.ChallengeNumber is int seed ? $"挑戦番号 {seed}" : "通常プレイ";
+            string result = score.Cleared ? "クリア" : $"R{score.Round}";
+            var card = Plate("#E3222C42", "#596680");
+            card.Margin = new Thickness(0, 0, 0, 6);
+            card.Padding = new Thickness(12, 8, 12, 8);
+            card.Child = Label($"{index + 1}位   {score.Points:N0} pt\n{result}  /  HP {score.Hp}  /  {mode}", 16, index == 0 ? Gold : White);
+            panel.Children.Add(card);
+        }
+
+        launchHost.Children.Add(new ScrollViewer
+        {
+            Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch
+        });
+        Keyboard.Focus(back);
     }
 
     Button LaunchButton(string title, Action action, bool primary = false)

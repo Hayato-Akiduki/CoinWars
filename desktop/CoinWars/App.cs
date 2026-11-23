@@ -462,8 +462,9 @@ public partial class GameWindow : Window
     {
         bool win = game.S.Hp > 0 && game.S.Results.LastOrDefault() == "win";
         int? challenge = game.S.ChallengeNumber;
-        var panel = Modal(win ? "TRIUMPH" : "GAME OVER", win ? "全20ラウンド制覇" : "次の投資が、新たな勝機になる。", 720, challenge.HasValue ? 480 : 420);
+        var panel = Modal(win ? "TRIUMPH" : "GAME OVER", win ? "全20ラウンド制覇" : "次の投資が、新たな勝機になる。", 720, challenge.HasValue ? 510 : 450);
         panel.Children.Add(Label($"到達 {game.S.Round} ラウンド     HP {game.S.Hp}     コイン {game.S.Gold}", 22, White));
+        panel.Children.Add(Label($"今回のスコア {game.S.FinalScore().Points:N0} pt", 22, Gold, true));
         panel.Children.Add(Label($"自己ベスト R{game.S.BestRound} / クリア {game.S.Clears}回", 15, Muted));
         if (challenge is int seed)
         {

@@ -8,11 +8,18 @@ public class Unit {
  public List<string> Items {get;set;}=[]; public List<int> Equipped {get;set;}=[];
 }
 public record Offer(string Kind,string Title,string Description,string Argument="");
+public record ScoreEntry(int Round, int Hp, bool Cleared, int? ChallengeNumber)
+{
+ [System.Text.Json.Serialization.JsonIgnore]
+ public int Points => Round * 1000 + Hp + (Cleared ? 1000 : 0);
+}
 public class State {
  public int? ChallengeNumber {get;set;}
  public uint ChallengeState {get;set;}
  public int Version {get;set;}=1;
  public int Plays {get;set;} public int Clears {get;set;} public int BestRound {get;set;} public int BestClearHp {get;set;}
+ public List<ScoreEntry> Scores {get;set;}=[];
+ public ScoreEntry FinalScore() => new(Round, Hp, Round == 20 && Hp > 0 && Results.LastOrDefault() == "win", ChallengeNumber);
  public int Hp {get;set;}=100; public int Gold {get;set;}=6; public int Level {get;set;}=1; public int Exp {get;set;}
  public int Round {get;set;}=1; public int Streak {get;set;} public int InterestCap {get;set;}=5; public int Debt {get;set;}
  public bool Locked {get;set;} public string Phase {get;set;}="plan";
@@ -67,7 +74,7 @@ public class Game {
   return value/4294967296.0;
  }
  int NextIndex(int limit=int.MaxValue)=>S.ChallengeNumber==null?rng.Next(limit):(int)(NextFraction()*limit);
- public void New(int? challenge=null){FirstFallen=null;LastCue=null;LastMerge=null;S=new(){ChallengeNumber=challenge,ChallengeState=(uint)(challenge??0)+1,Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp}; Fighters=[];S.Board[1]=new(); Roll(); MakeEnemy(); Log("ユニットを購入し、選択→空きマスで配置。準備できたら戦闘開始。");}
+ public void New(int? challenge=null){FirstFallen=null;LastCue=null;LastMerge=null;S=new(){ChallengeNumber=challenge,ChallengeState=(uint)(challenge??0)+1,Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp,Scores=S.Scores}; Fighters=[];S.Board[1]=new(); Roll(); MakeEnemy(); Log("ユニットを購入し、選択→空きマスで配置。準備できたら戦闘開始。");}
  public void Log(string s){S.Log.Insert(0,s);if(S.Log.Count>60)S.Log.RemoveAt(60);}
  T Pick<T>(IEnumerable<T> values){var a=values.ToArray();return a[NextIndex(a.Length)];}
  public IEnumerable<Unit> Owned()=>S.Board.Concat(S.Bench).OfType<Unit>();
@@ -204,7 +211,13 @@ public class Game {
   if(win){S.Streak=S.Streak>0?S.Streak+1:1;AddItem();if(strong){AddItem();S.Gold+=5;}Log("勝利！");}
   else {int damage=2+S.Round/3+Fighters.Where(f=>!f.Player&&f.Alive).Sum(f=>f.Unit.Star+Data.Def(f.Unit).Cost/2);if(result=="draw")damage=(int)Math.Ceiling(damage/2.0);
    S.Hp=Math.Max(0,S.Hp-damage);S.Streak=result=="draw"?0:S.Streak<0?S.Streak-1:-1;Log($"{(result=="draw"?"引き分け":"敗北")}：HP −{damage}");if(result=="lose"&&NextFraction()<.3)AddItem();}
-  S.Results.Add(result);S.BestRound=Math.Max(S.BestRound,S.Round);if(S.Hp<=0||S.Round==20){if(S.Hp>0&&win){S.Clears++;S.BestClearHp=Math.Max(S.BestClearHp,S.Hp);}S.Phase="over";Log(S.Hp>0&&win?"全20ラウンド制覇！":"ゲーム終了");return;}
+  S.Results.Add(result);S.BestRound=Math.Max(S.BestRound,S.Round);
+  if(S.Hp<=0||S.Round==20){
+   var score = S.FinalScore();
+   if(score.Cleared){S.Clears++;S.BestClearHp=Math.Max(S.BestClearHp,S.Hp);}
+   S.Scores = S.Scores.Append(score).OrderByDescending(entry => entry.Points).Take(10).ToList();
+   S.Phase="over";Log(score.Cleared?"全20ラウンド制覇！":"ゲーム終了");return;
+  }
   int income=Income(win);S.Gold=Math.Max(0,S.Gold+income);if(S.Debt>0)S.Debt--;Log($"収入 {income:+0;-0;0} コイン");
   S.Round++;AddExp(2);if(!S.Locked)Roll();MakeEnemy();S.Phase="plan";if(new[]{2,5,8,11,14,17}.Contains(S.Round))CreateOffers();
  }
@@ -265,6 +278,12 @@ public static class Saves {
   foreach(var u in s.Board.Concat(s.Bench).Concat(s.Enemy).OfType<Unit>())if(!Data.Units.Any(d=>d.Key==u.Key)||u.Star<1||u.Star>3||u.Items.Count>3||u.Items.Count!=u.Equipped.Count||u.Items.Any(k=>!Data.Items.Any(d=>d.Key==k)))throw new InvalidDataException("ユニットデータが不正です");
   if(s.Shop.Any(k=>k!=null&&!Data.Units.Any(d=>d.Key==k))||s.Items.Count>10||s.Items.Any(k=>!Data.Items.Any(d=>d.Key==k))||s.Emblems.Any(k=>!Data.Traits.ContainsKey(k.Key)||k.Value<0)||s.Board.OfType<Unit>().Count()>Math.Min(8,s.Level))throw new InvalidDataException("編成データが不正です");
   if(s.Phase=="event"&&(s.Offers.Count!=3||s.Offers.Any(o=>!new[]{"cash","loan","interest","scout","attack","hp","items","heal","exp","emblem","gamble"}.Contains(o.Kind)||(o.Kind=="scout"&&!Data.Units.Any(d=>d.Key==o.Argument))||(o.Kind=="emblem"&&!Data.Traits.ContainsKey(o.Argument)))))throw new InvalidDataException("イベントデータが不正です");
+  if (s.Scores == null || s.Scores.Count > 10 ||
+      s.Scores.Any(entry => entry == null || entry.Round is < 1 or > 20 || entry.Hp is < 0 or > 100 ||
+          (entry.Cleared && (entry.Round != 20 || entry.Hp == 0))))
+   throw new InvalidDataException("ランキングデータが不正です");
+  s.Scores = s.Scores.OrderByDescending(entry => entry.Points).ToList();
+  if (s.Scores.Count == 0 && s.Phase == "over") s.Scores.Add(s.FinalScore());
   return s;
  }
 }

@@ -137,7 +137,25 @@ try{
  Check(Saves.ReadWithRecovery(damagedPath) is {Recovered:true},"empty enemy save recovers instead of crashing at battle start");
  valid.MakeEnemy();valid.S.HpBuff=-1;File.WriteAllText(damagedPath,JsonSerializer.Serialize(valid.S));
  Check(Saves.ReadWithRecovery(damagedPath) is {Recovered:true},"invalid combat buff recovers from backup");
+
+ var ranked=new Game(16);ranked.New(123);
+ ranked.S.Scores=Enumerable.Range(1,10).Select(round=>new ScoreEntry(round,100,false,null)).ToList();
+ ranked.S.Round=20;
+ ranked.MakeEnemy();
+ ranked.Start();while(ranked.S.Phase=="battle")ranked.Step();
+ var finalScore=ranked.S.FinalScore();
+ Check(ranked.S.Scores.Count==10&&ranked.S.Scores[0]==finalScore&&ranked.S.Scores[^1].Round==2,"finished run enters ranked top ten and drops lowest score");
+ string rankingPath=Path.Combine(damagedDir,"ranking.json");
+ Saves.Write(ranked.S,rankingPath);
+ ranked.S=Saves.Read(rankingPath)!;ranked.New();
+ Check(ranked.S.Scores.Count==10&&ranked.S.Scores[0].ChallengeNumber==123,"leaderboard survives save and a new run");
+ string legacyPath=Path.Combine(damagedDir,"legacy.json");
+ var savedJson=System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(rankingPath))!.AsObject();
+ savedJson.Remove(nameof(State.Scores));
+ File.WriteAllText(legacyPath,savedJson.ToJsonString());
+ Check(Saves.Read(legacyPath)!.Scores.SequenceEqual([finalScore]),"legacy finished save imports the last result");
 }finally{Directory.Delete(damagedDir,true);}
+Check(new ScoreEntry(20,1,true,null).Points>new ScoreEntry(20,100,false,null).Points,"a clear outranks any non-clear");
 var challengeA=new Game();var challengeB=new Game();
 challengeA.New(123456);challengeB.New(123456);
 Check(JsonSerializer.Serialize(challengeA.S)==JsonSerializer.Serialize(challengeB.S),"same challenge number produces same opening");
