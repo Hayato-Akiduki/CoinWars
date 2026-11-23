@@ -192,7 +192,7 @@ public class Game {
   var counts=Counts(board,player);int knight=Tier("knight",counts),guard=Tier("guard",counts),wind=Tier("wind",counts),mage=Tier("mage",counts),rich=Tier("rich",counts);
   for(int i=0;i<board.Length;i++){if(board[i] is not Unit u)continue;var d=Data.Def(u);bool Has(string t)=>d.Traits.Contains(t);int N(string k)=>u.Items.Count(x=>x==k);
    double hp=d.Hp*Data.Mult(u.Star)*(player?1+S.HpBuff:1),atk=d.Atk*Data.Mult(u.Star)*(player?1+S.AttackBuff:1),spd=d.Spd,sm=1;
-   if(Has("knight"))atk*=new[]{1,1.15,1.4}[knight];if(Has("guard"))hp*=new[]{1,1.2,1.5}[guard];if(Has("wind"))spd*=new[]{1,1.2,1.5}[wind];if(Has("mage"))sm=new[]{1,1.15,1.35}[mage];
+   if(Has("knight"))atk*=new[]{1,1.15,1.4}[knight];if(Has("guard"))hp*=new[]{1,1.2,1.5}[guard];if(Has("wind"))spd*=new[]{1,1.2,1.5}[wind];if(Has("mage"))sm=new[]{1,1.2,1.5}[mage];
    if(Has("rich")&&rich>=2)atk*=1+Math.Min(.5,(player?S.Gold:20+S.Round*2)/100.0)*(rich==3?2:1);
    hp*=1+.25*N("armor");atk*=1+.2*N("blade");spd*=1+.15*N("boots");sm+=.35*N("tome");
    if (!player)

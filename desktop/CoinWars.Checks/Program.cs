@@ -203,7 +203,7 @@ magic.S.Level = 4;
 magic.S.Board = [new() { Key = "spark" }, new() { Key = "witch" }, new() { Key = "seer" }, new() { Key = "dragon" }, null, null, null, null];
 magic.Start();
 Check(magic.Fighters.Where(fighter => fighter.Player).All(fighter =>
-      fighter.Need == 3 && fighter.SkillMultiplier == 1.35), "four mages gain 35 percent skill power at normal frequency");
+      fighter.Need == 3 && fighter.SkillMultiplier == 1.5), "four mages gain 50 percent skill power at normal frequency");
 Check(new ScoreEntry(20,1,true,null).Points>new ScoreEntry(20,100,false,null).Points,"a clear outranks any non-clear");
 var challengeA=new Game();var challengeB=new Game();
 challengeA.New(123456);challengeB.New(123456);

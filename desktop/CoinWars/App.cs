@@ -318,7 +318,7 @@ public partial class GameWindow : Window
         Put(scene, Label("絆", 24, White, true), 30, 119, 180, 36);
         Put(scene, Label("編成ボーナス", 11, Muted), 30, 153, 200, 20);
         var counts = game.Counts(game.S.Board);
-        string[] descriptions = ["攻撃力を高める", "最大HP・開幕シールド", "スキル威力と回転率", "速度・開幕即行動", "追加収入・所持金で強化"];
+        string[] descriptions = ["攻撃力を高める", "最大HP・開幕シールド", "スキル威力を高める", "速度・開幕即行動", "追加収入・所持金で強化"];
         int i = 0;
         foreach (var (key, name) in Data.Traits)
         {
