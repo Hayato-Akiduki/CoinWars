@@ -32,8 +32,3 @@ dotnet run --project desktop/CoinWars
 [詳しい操作・更新履歴](desktop/README.md) / [ver1.0 リリースノート](desktop/RELEASE_NOTES_v1.0.0.md)
 
 `money.html` は移植前のブラウザー版、`desktop/` はC#・WPF版です。
-
-## 本作について
-
-『崩壊：スターレイル』のマネーウォーズを参考に制作した非公式の独立したゲームです。公式作品・公式配布物ではありません。
-キャラクター画像はこのプロジェクト用の生成素材です。[素材情報](desktop/CoinWars/Assets/GENERATION.md)
