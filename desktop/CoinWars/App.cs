@@ -121,11 +121,11 @@ public partial class GameWindow : Window
         Render();
     }
     string SettingsPath => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(savePath)!, "preferences.json");
-    void Persist()
+    bool Persist()
     {
-        if (!enteredGame) return;
-        try { Saves.Write(game.S, savePath); }
-        catch (Exception ex) { message = "保存できません：" + ex.Message; }
+        if (!enteredGame) return true;
+        try { Saves.Write(game.S, savePath); return true; }
+        catch (Exception ex) { message = "保存できません：" + ex.Message; return false; }
     }
     void SavePreferences()
     {
@@ -168,6 +168,7 @@ public partial class GameWindow : Window
             game.Step();
             var cue = game.LastCue;
             resultPending = game.S.Phase != "battle";
+            if (resultPending) Persist();
             if (cue is { IsSkill: true } && !preferences.ReducedMotion)
             {
                 SkillCutIn(cue);
@@ -184,7 +185,6 @@ public partial class GameWindow : Window
                 timer.Stop();
                 UpdateBattleActors();
                 PlayCue(cue);
-                Persist();
                 if (!await WaitPresentation(preferences.ReducedMotion ? 100 : 800, generation)) return;
                 string result = game.S.Results.LastOrDefault() ?? "draw";
                 Sound(result == "win" ? "win" : "lose");
@@ -460,11 +460,13 @@ public partial class GameWindow : Window
     }
     void EndDialog()
     {
-        bool win = game.S.Hp > 0 && game.S.Results.LastOrDefault() == "win";
+        bool abandoned = game.S.RunResults.LastOrDefault() is { Outcome: "abandoned" } last && last.Attempt == game.S.Plays;
+        bool win = !abandoned && game.S.FinalScore().Cleared;
         int? challenge = game.S.ChallengeNumber;
-        var panel = Modal(win ? "TRIUMPH" : "GAME OVER", win ? "全20ラウンド制覇" : "次の投資が、新たな勝機になる。", 720, challenge.HasValue ? 510 : 450);
+        string title = win ? "TRIUMPH" : abandoned ? "途中終了" : "GAME OVER";
+        var panel = Modal(title, win ? "全20ラウンド制覇" : "", 720, challenge.HasValue ? 510 : 450);
         panel.Children.Add(Label($"到達 {game.S.Round} ラウンド     HP {game.S.Hp}     コイン {game.S.Gold}", 22, White));
-        panel.Children.Add(Label($"今回のスコア {game.S.FinalScore().Points:N0} pt", 22, Gold, true));
+        if (!abandoned) panel.Children.Add(Label($"今回のスコア {game.S.FinalScore().Points:N0} pt", 22, Gold, true));
         panel.Children.Add(Label($"自己ベスト R{game.S.BestRound} / クリア {game.S.Clears}回", 15, Muted));
         if (challenge is int seed)
         {
@@ -478,6 +480,10 @@ public partial class GameWindow : Window
         next.Margin = new Thickness(80, challenge.HasValue ? 12 : 40, 80, 0);
         next.Height = 55;
         panel.Children.Add(next);
+        var back = Btn("タイトルへ戻る", ReturnToTitle);
+        back.Margin = new Thickness(80, 12, 80, 0);
+        back.Height = 48;
+        panel.Children.Add(back);
     }
     StackPanel Modal(string title, string subtitle, double width, double height)
     {
@@ -529,6 +535,15 @@ public partial class GameWindow : Window
             number.TextChanged+=(sender,args)=>challengeStart.IsEnabled=Planning && int.TryParse(number.Text,System.Globalization.NumberStyles.None,null,out _);
             panel.Children.Add(challengeStart);
             panel.Children.Add(Btn("最初から", () => SetDialog("restart"),game.S.Phase!="battle"&&!resultPending));
+            bool canLeave = game.S.Phase != "battle" && !resultPending;
+            panel.Children.Add(Btn("保存してタイトルへ戻る", ReturnToTitle, canLeave));
+            panel.Children.Add(Btn("挑戦を終了してタイトルへ戻る", () =>
+            {
+                if (MessageBox.Show(this, "この挑戦を終了し、リザルト一覧に残しますか？", "挑戦を終了",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+                game.EndRun();
+                ReturnToTitle();
+            }, canLeave && game.S.Phase != "over"));
             panel.Children.Add(Label($"記録：{game.S.Plays}回挑戦 / {game.S.Clears}回クリア\n準備中・イベント選択中は自動保存します。\n戦闘中に終了すると、そのラウンドの準備画面から再開します。",16,Muted));
         }
         var close=Btn("閉じる  [Esc]",()=>SetDialog(null));close.Margin=new Thickness(0,24,0,0);close.Height=42;panel.Children.Add(close);

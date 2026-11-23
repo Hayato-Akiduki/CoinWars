@@ -13,12 +13,16 @@ public record ScoreEntry(int Round, int Hp, bool Cleared, int? ChallengeNumber)
  [System.Text.Json.Serialization.JsonIgnore]
  public int Points => Round * 1000 + Hp + (Cleared ? 1000 : 0);
 }
+public record BattleSave(int Round, string Outcome, int? Hp, int? Gold);
+public record RunResult(int Attempt, string Outcome, int Round, int Hp, int Gold, int? ChallengeNumber, List<BattleSave> Battles);
 public class State {
  public int? ChallengeNumber {get;set;}
  public uint ChallengeState {get;set;}
  public int Version {get;set;}=1;
  public int Plays {get;set;} public int Clears {get;set;} public int BestRound {get;set;} public int BestClearHp {get;set;}
  public List<ScoreEntry> Scores {get;set;}=[];
+ public List<BattleSave> BattleSaves {get;set;}=[];
+ public List<RunResult> RunResults {get;set;}=[];
  public ScoreEntry FinalScore() => new(Round, Hp, Round == 20 && Hp > 0 && Results.LastOrDefault() == "win", ChallengeNumber);
  public int Hp {get;set;}=100; public int Gold {get;set;}=6; public int Level {get;set;}=1; public int Exp {get;set;}
  public int Round {get;set;}=1; public int Streak {get;set;} public int InterestCap {get;set;}=5; public int Debt {get;set;}
@@ -74,7 +78,18 @@ public class Game {
   return value/4294967296.0;
  }
  int NextIndex(int limit=int.MaxValue)=>S.ChallengeNumber==null?rng.Next(limit):(int)(NextFraction()*limit);
- public void New(int? challenge=null){FirstFallen=null;LastCue=null;LastMerge=null;S=new(){ChallengeNumber=challenge,ChallengeState=(uint)(challenge??0)+1,Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp,Scores=S.Scores}; Fighters=[];S.Board[1]=new(); Roll(); MakeEnemy(); Log("ユニットを購入し、選択→空きマスで配置。準備できたら戦闘開始。");}
+ public void New(int? challenge=null){
+  EndRun();
+  FirstFallen=null;LastCue=null;LastMerge=null;
+  S=new(){ChallengeNumber=challenge,ChallengeState=(uint)(challenge??0)+1,Plays=S.Plays+1,Clears=S.Clears,BestRound=S.BestRound,BestClearHp=S.BestClearHp,Scores=S.Scores,RunResults=S.RunResults};
+  Fighters=[];S.Board[1]=new(); Roll(); MakeEnemy(); Log("ユニットを購入し、選択→空きマスで配置。準備できたら戦闘開始。");
+ }
+ public void EndRun()
+ {
+  if (S.Plays == 0 || S.Phase is "over" or "battle") return;
+  S.RunResults.Add(new(S.Plays, "abandoned", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves]));
+  S.Phase = "over";
+ }
  public void Log(string s){S.Log.Insert(0,s);if(S.Log.Count>60)S.Log.RemoveAt(60);}
  T Pick<T>(IEnumerable<T> values){var a=values.ToArray();return a[NextIndex(a.Length)];}
  public IEnumerable<Unit> Owned()=>S.Board.Concat(S.Bench).OfType<Unit>();
@@ -216,9 +231,12 @@ public class Game {
    var score = S.FinalScore();
    if(score.Cleared){S.Clears++;S.BestClearHp=Math.Max(S.BestClearHp,S.Hp);}
    S.Scores = S.Scores.Append(score).OrderByDescending(entry => entry.Points).Take(10).ToList();
+   S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold));
+   S.RunResults.Add(new(S.Plays, score.Cleared ? "clear" : "defeat", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves]));
    S.Phase="over";Log(score.Cleared?"全20ラウンド制覇！":"ゲーム終了");return;
   }
   int income=Income(win);S.Gold=Math.Max(0,S.Gold+income);if(S.Debt>0)S.Debt--;Log($"収入 {income:+0;-0;0} コイン");
+  S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold));
   S.Round++;AddExp(2);if(!S.Locked)Roll();MakeEnemy();S.Phase="plan";if(new[]{2,5,8,11,14,17}.Contains(S.Round))CreateOffers();
  }
 }
@@ -282,8 +300,25 @@ public static class Saves {
       s.Scores.Any(entry => entry == null || entry.Round is < 1 or > 20 || entry.Hp is < 0 or > 100 ||
           (entry.Cleared && (entry.Round != 20 || entry.Hp == 0))))
    throw new InvalidDataException("ランキングデータが不正です");
+  if (s.BattleSaves == null || s.RunResults == null ||
+      s.BattleSaves.Any(entry => entry == null) ||
+      s.RunResults.Any(entry => entry?.Battles == null || entry.Battles.Any(battle => battle == null)))
+   throw new InvalidDataException("戦闘履歴が不正です");
+  if (s.BattleSaves.Count == 0 && s.Results.Count > 0)
+  {
+   int firstRound = Math.Max(1, s.Round - s.Results.Count + (s.Phase == "over" ? 1 : 0));
+   s.BattleSaves.AddRange(s.Results.Select((outcome, index) => new BattleSave(
+       firstRound + index, outcome, null, null)));
+  }
   s.Scores = s.Scores.OrderByDescending(entry => entry.Points).ToList();
-  if (s.Scores.Count == 0 && s.Phase == "over") s.Scores.Add(s.FinalScore());
+  if (s.Phase == "over")
+  {
+   var score = s.FinalScore();
+   var last = s.RunResults.LastOrDefault();
+   if (last?.Attempt != s.Plays)
+    s.RunResults.Add(new(s.Plays, score.Cleared ? "clear" : "defeat", s.Round, s.Hp, s.Gold, s.ChallengeNumber, [..s.BattleSaves]));
+   if (s.Scores.Count == 0 && last?.Outcome != "abandoned") s.Scores.Add(score);
+  }
   return s;
  }
 }

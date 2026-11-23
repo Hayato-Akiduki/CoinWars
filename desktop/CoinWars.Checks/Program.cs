@@ -154,6 +154,24 @@ try{
  savedJson.Remove(nameof(State.Scores));
  File.WriteAllText(legacyPath,savedJson.ToJsonString());
  Check(Saves.Read(legacyPath)!.Scores.SequenceEqual([finalScore]),"legacy finished save imports the last result");
+
+ var history=new Game(17);history.New(321);
+ history.Start();while(history.S.Phase=="battle")history.Step();
+ string historyPath=Path.Combine(damagedDir,"history.json");
+ Saves.Write(history.S,historyPath);
+ history.S=Saves.Read(historyPath)!;
+ Check(history.S.BattleSaves.Count==1 && history.S.BattleSaves[0] is {Round:1,Hp:not null,Gold:not null} battle &&
+       battle.Outcome==history.S.Results[0],"completed battle is saved with its round, outcome, HP and gold");
+ var savedBattle=history.S.BattleSaves.Single();
+ history.New();
+ Check(history.S.BattleSaves.Count==0 && history.S.RunResults.Single() is {Outcome:"abandoned",ChallengeNumber:321} abandoned &&
+       abandoned.Battles.SequenceEqual([savedBattle]),
+       "restarting archives the previous challenge and clears the active battle list");
+ history.EndRun();history.EndRun();
+ Saves.Write(history.S,historyPath);
+ history.S=Saves.Read(historyPath)!;
+ Check(history.S.RunResults.Count==2 && history.S.Scores.Count==0,"ending a run twice or reloading does not duplicate results or assign a score");
+ Check(Saves.Read(rankingPath)!.RunResults.Single().Battles.Single().Round==20,"naturally finished run archives the last battle");
 }finally{Directory.Delete(damagedDir,true);}
 Check(new ScoreEntry(20,1,true,null).Points>new ScoreEntry(20,100,false,null).Points,"a clear outranks any non-clear");
 var challengeA=new Game();var challengeB=new Game();

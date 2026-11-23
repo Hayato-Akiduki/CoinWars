@@ -91,6 +91,8 @@ public partial class GameWindow
         var resume = LaunchButton(hasResult ? "前回の結果を見る" : "つづきから", () => EnterGame(false), true);
         if (hasSave) menu.Children.Add(resume);
         menu.Children.Add(start);
+        menu.Children.Add(LaunchButton("セーブ一覧", () => ShowSaveHistory(hasSave)));
+        menu.Children.Add(LaunchButton("リザルト一覧", () => ShowRunResults(hasSave)));
         menu.Children.Add(LaunchButton("スコアランキング", () => ShowScores(hasSave)));
         menu.Children.Add(LaunchButton("終了", Close));
 
@@ -100,6 +102,106 @@ public partial class GameWindow
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         });
         Keyboard.Focus(hasSave ? resume : start);
+    }
+
+    void ReturnToTitle()
+    {
+        if (ShowingBattle) return;
+        if (!Persist())
+        {
+            MessageBox.Show(this, message, "保存エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        enteredGame = false;
+        dialog = null;
+        selected = null;
+        selectedItem = null;
+        enemyPreview = false;
+        highlightedPurchase = null;
+        paused = false;
+        timer.Stop();
+        transitionGeneration++;
+        ClearPresentation();
+        SyncPlayback();
+        launchHost.Visibility = Visibility.Visible;
+        launchNotice = null;
+        ShowTitle(true);
+    }
+
+    void ShowSaveHistory(bool hasSave)
+    {
+        var panel = OpenHistoryPage("セーブ一覧", "タイトルに戻る", () => ShowTitle(hasSave));
+        if (!hasSave || game.S.Phase == "over")
+        {
+            panel.Children.Add(Label("進行中の挑戦はありません。", 18, Muted));
+            return;
+        }
+
+        var state = game.S;
+        panel.Children.Add(Label($"進行中   R{state.Round} / 20   HP {state.Hp}   {state.Gold} コイン", 18, Gold));
+        panel.Children.Add(Label(RunMode(state.ChallengeNumber), 15, Muted));
+        panel.Children.Add(LaunchButton("つづきから", () => EnterGame(false), true));
+        AddBattleHistory(panel, state.BattleSaves);
+    }
+
+    void ShowRunResults(bool hasSave)
+    {
+        var panel = OpenHistoryPage("リザルト一覧", "タイトルに戻る", () => ShowTitle(hasSave));
+        if (game.S.RunResults.Count == 0)
+            panel.Children.Add(Label("終了した挑戦はまだありません。", 18, Muted));
+        foreach (var run in game.S.RunResults.AsEnumerable().Reverse())
+        {
+            string summary = $"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}   R{run.Round} / 20   HP {run.Hp}";
+            panel.Children.Add(LaunchButton(summary, () => ShowRunDetails(hasSave, run)));
+        }
+    }
+
+    void ShowRunDetails(bool hasSave, RunResult run)
+    {
+        var panel = OpenHistoryPage($"挑戦 {run.Attempt}   {RunOutcome(run.Outcome)}", "リザルト一覧に戻る", () => ShowRunResults(hasSave));
+        panel.Children.Add(Label($"R{run.Round} / 20   HP {run.Hp}   {run.Gold} コイン   {RunMode(run.ChallengeNumber)}", 18, Gold));
+        AddBattleHistory(panel, run.Battles);
+    }
+
+    StackPanel OpenHistoryPage(string title, string backLabel, Action goBack)
+    {
+        launchHost.Children.Clear();
+        launchHost.Background = new LinearGradientBrush(ColorOf("#101725"), ColorOf("#344558"), 24);
+        var panel = new StackPanel { MaxWidth = 680, Margin = new Thickness(32, 24, 32, 24) };
+        var back = LaunchButton(backLabel, goBack);
+        back.HorizontalAlignment = HorizontalAlignment.Left;
+        panel.Children.Add(back);
+        panel.Children.Add(Label(title, 34, White, true));
+        launchHost.Children.Add(new ScrollViewer
+        {
+            Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch
+        });
+        Keyboard.Focus(back);
+        return panel;
+    }
+
+    static string RunMode(int? number) => number is int seed ? $"挑戦番号 {seed}" : "通常プレイ";
+    static string RunOutcome(string outcome) => outcome switch { "clear" => "クリア", "abandoned" => "途中終了", _ => "敗北" };
+
+    static void AddBattleHistory(StackPanel panel, List<BattleSave> battles)
+    {
+        var heading = Label("戦闘ごとの記録", 21, White, true);
+        heading.Margin = new Thickness(0, 18, 0, 6);
+        panel.Children.Add(heading);
+        if (battles.Count == 0)
+            panel.Children.Add(Label("完了した戦闘はまだありません。", 16, Muted));
+        foreach (var battle in battles.AsEnumerable().Reverse())
+        {
+            string result = battle.Outcome switch { "win" => "勝利", "lose" => "敗北", "draw" => "引き分け", _ => "結果不明" };
+            string details = battle.Hp is int hp && battle.Gold is int gold ? $"   HP {hp}   {gold} コイン" : "   HP・コインの記録なし";
+            var card = Plate("#E3222C42", "#596680");
+            card.Margin = new Thickness(0, 0, 0, 6);
+            card.Padding = new Thickness(12, 8, 12, 8);
+            card.Child = Label($"R{battle.Round}   {result}{details}", 16, White);
+            panel.Children.Add(card);
+        }
     }
 
     void ShowScores(bool hasSave)
