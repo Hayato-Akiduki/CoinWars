@@ -1,4 +1,4 @@
-# CoinWars / C# Windows版 1.2.0
+# CoinWars / C# Windows版 1.3.0
 
 ## ランキングの同点と自己ベスト
 

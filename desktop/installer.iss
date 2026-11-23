@@ -1,7 +1,7 @@
 [Setup]
 AppId={{75D5CD52-8734-4C3E-89ED-3D1CF1966514}
 AppName=CoinWars
-AppVersion=1.2.0
+AppVersion=1.3.0
 SetupIconFile=CoinWars\Assets\CoinWars.ico
 DefaultDirName={localappdata}\Programs\CoinWars
 DefaultGroupName=CoinWars
@@ -9,7 +9,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=artifacts
-OutputBaseFilename=CoinWars-Setup-v1.2.0
+OutputBaseFilename=CoinWars-Setup-v1.3.0
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
