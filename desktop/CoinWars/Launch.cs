@@ -248,7 +248,7 @@ public partial class GameWindow
                 Foreground = battle.Outcome switch { "win" => Cyan, "lose" => Loss, _ => Muted }
             });
             line.Inlines.Add(new System.Windows.Documents.Run($"   {BattleHp(battle)}   {goldText}"));
-            card.Child = line;
+            card.Child = new Expander { Header = line, Content = BattleReportContent(battle), Foreground = White };
             panel.Children.Add(card);
         }
     }

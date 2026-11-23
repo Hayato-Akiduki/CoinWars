@@ -163,6 +163,13 @@ try{
  Check(history.S.BattleSaves.Count==1 && history.S.BattleSaves[0] is {Round:1,HpBefore:83,Hp:not null,Gold:not null} battle &&
        battle.Hp==history.S.Hp && battle.Outcome==history.S.Results[0],"completed battle saves HP before and after combat with the outcome and gold");
  var savedBattle=history.S.BattleSaves.Single();
+ Check(savedBattle.Report is { Allies.Length: 1 } report &&
+       report.Allies.Single().Damage == history.Fighters.Single(f => f.Player).Dealt &&
+       report.FirstFallen == history.FirstFallen &&
+       report.SurvivingEnemies.Select(enemy => enemy.Hp).SequenceEqual(history.Fighters.Where(f => !f.Player && f.Alive).Select(f => f.Hp)),
+       "battle report preserves damage, first fallen ally and surviving enemy HP after reload");
+ Check(JsonSerializer.Deserialize<BattleSave>("""{"Round":1,"Outcome":"win","Hp":83,"Gold":6}""")!.Report == null,
+       "older battle record loads without a detailed report");
  history.New();
  Check(history.S.BattleSaves.Count==0 && history.S.RunResults.Single() is {Outcome:"abandoned",ChallengeNumber:321} abandoned &&
        abandoned.Battles.SequenceEqual([savedBattle]),

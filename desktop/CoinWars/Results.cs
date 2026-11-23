@@ -28,7 +28,7 @@ public partial class GameWindow
 
         var battles = run?.Battles ?? state.BattleSaves;
         panel.Children.Add(Section("ラウンド推移"));
-        panel.Children.Add(RoundStrip(battles));
+        AddRoundReports(panel, battles);
         panel.Children.Add(Tally(battles));
 
         var team = state.Board.OfType<Unit>().ToList();
@@ -113,7 +113,35 @@ public partial class GameWindow
 
     static string OutcomeName(string outcome) => outcome switch { "win" => "勝利", "lose" => "敗北", "draw" => "引き分け", _ => "結果不明" };
 
-    static UniformGrid RoundStrip(List<BattleSave> battles)
+    static void AddRoundReports(StackPanel panel, List<BattleSave> battles)
+    {
+        var details = new ContentControl();
+        panel.Children.Add(RoundStrip(battles, battle => details.Content = BattleReportContent(battle)));
+        if (battles.Count > 0) panel.Children.Add(Label("ラウンドを選んで戦闘レポートを見る", 14, Muted));
+        panel.Children.Add(details);
+    }
+
+    static StackPanel BattleReportContent(BattleSave battle)
+    {
+        var details = new StackPanel { Margin = new Thickness(8) };
+        details.Children.Add(Label($"R{battle.Round}  {OutcomeName(battle.Outcome)}   {BattleHp(battle)}", 17, Gold, true));
+        if (battle.Report is not { Allies: { } allies, SurvivingEnemies: { } enemies } report)
+        {
+            details.Children.Add(Label("この戦闘の詳細データは保存されていません。", 15, Muted));
+            return details;
+        }
+        details.Children.Add(Label($"最初に倒れた味方：{report.FirstFallen ?? "なし"}", 15, White));
+        details.Children.Add(Section("味方ごとの与ダメージ"));
+        foreach (var ally in allies)
+            details.Children.Add(Label($"{ally.Name}  ★{ally.Star}   {ally.Damage:N0} ダメージ", 15, White));
+        details.Children.Add(Section("生き残った敵"));
+        if (enemies.Length == 0) details.Children.Add(Label("なし", 15, Muted));
+        foreach (var enemy in enemies)
+            details.Children.Add(Label($"{enemy.Name}  ★{enemy.Star}   残りHP {Math.Ceiling(enemy.Hp):N0}", 15, White));
+        return details;
+    }
+
+    static UniformGrid RoundStrip(List<BattleSave> battles, Action<BattleSave> openReport)
     {
         var byRound = battles.GroupBy(battle => battle.Round).ToDictionary(group => group.Key, group => group.Last());
         var strip = new UniformGrid { Columns = 20, Margin = new Thickness(3, 0, 3, 0) };
@@ -133,7 +161,22 @@ public partial class GameWindow
                 },
                 ToolTip = battle == null ? $"R{round}  未到達" : $"R{round}  {OutcomeName(battle.Outcome)}   {BattleHp(battle)}"
             };
-            strip.Children.Add(cell);
+            if (battle == null)
+            {
+                strip.Children.Add(cell);
+                continue;
+            }
+
+            var button = new Button
+            {
+                Content = round.ToString(), Foreground = White, Background = cell.Background,
+                BorderBrush = cell.BorderBrush, BorderThickness = cell.BorderThickness,
+                Margin = cell.Margin, MinHeight = cell.MinHeight, Padding = new Thickness(0),
+                FontSize = 13 * textScale, ToolTip = cell.ToolTip
+            };
+            System.Windows.Automation.AutomationProperties.SetName(button, $"{cell.ToolTip} 戦闘レポート");
+            button.Click += (_, _) => openReport(battle);
+            strip.Children.Add(button);
         }
         return strip;
     }
@@ -192,7 +235,7 @@ public partial class GameWindow
         panel.Children.Add(StatTiles(run.Round, run.Hp, run.Gold,
             run.Outcome == "abandoned" ? null : new ScoreEntry(run.Round, run.Hp, run.Outcome == "clear", run.ChallengeNumber, run.Difficulty).Points));
         panel.Children.Add(Section("ラウンド推移"));
-        panel.Children.Add(RoundStrip(run.Battles));
+        AddRoundReports(panel, run.Battles);
         panel.Children.Add(Tally(run.Battles));
         AddBattleHistory(panel, run.Battles);
     }

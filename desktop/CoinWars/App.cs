@@ -318,24 +318,36 @@ public partial class GameWindow : Window
         Put(scene, Label("絆", 24, White, true), 30, 119, 180, 36);
         Put(scene, Label("編成ボーナス", 11, Muted), 30, 153, 200, 20);
         var counts = game.Counts(game.S.Board);
-        string[] descriptions = ["攻撃力を高める", "最大HP・開幕シールド", "スキル威力を高める", "速度・開幕即行動", "追加収入・所持金で強化"];
         int i = 0;
         foreach (var (key, name) in Data.Traits)
         {
-            int tier = game.Tier(key); double y = 189 + i * 69;
-            Put(scene, Plate(tier > 0 ? "#252E3E" : "#161D2B", "#293344"), 24, y, 208, 60);
-            Put(scene, Label(TraitSymbol(key), 24, tier > 0 ? Gold : Muted), 38, y + 10, 35, 35);
-            Put(scene, Label(name, 16, White, true), 79, y + 7, 110, 25);
-            Put(scene, Label(counts[key].ToString(), 21, tier > 0 ? Gold : White, true), 197, y + 7, 30, 30);
-            Put(scene, Label(string.Join("  ›  ", Data.Thresholds[key]), 11, tier > 0 ? Gold : Muted), 80, y + 32, 130, 20);
-            var tip = descriptions[i] + "\n" + string.Join(" / ", Data.Units.Where(d => d.Traits.Contains(key)).Select(d => d.Name));
-            ((FrameworkElement)scene.Children[^4]).ToolTip = tip;
+            int tier = game.Tier(key, counts);
+            var thresholds = Data.Thresholds[key];
+            string progress = tier < thresholds.Length ? $"{counts[key]}/{thresholds[tier]}体" : $"{counts[key]}体・最大段階";
+            var card = Btn($"{TraitSymbol(key)}  {name}   {progress}", () => SetDialog("trait:" + key), true, tier > 0);
+            card.ToolTip = TraitEffects(key, counts[key], tier);
+            Put(scene, card, 24, 189 + i * 69, 208, 60);
             i++;
         }
         Put(scene, Label("収益予測", 14, Gold), 30, 530, 180, 25);
         Put(scene, Label($"利息 +{game.Interest}   /   上限 {game.S.InterestCap}", 16, White), 30, 558, 200, 25);
         Put(scene, Label($"勝利時 +{game.Income(true,game.S.Streak > 0 ? game.S.Streak + 1 : 1)} コイン", 13, Muted), 30, 584, 205, 22);
     }
+    static string TraitEffects(string key, int count, int tier)
+    {
+        string Increase(double multiplier) => (multiplier - 1).ToString("+0%");
+        string Effect(int level) => key switch
+        {
+            "knight" => $"攻撃力 {Increase(Data.KnightAttack[level])}" + (level == 2 ? $"、被ダメージ −{Data.KnightReduction:P0}" : ""),
+            "guard" => $"最大HP {Increase(Data.GuardHp[level])}" + (level == 2 ? $"、味方全員に開幕シールド {Data.GuardShield:P0}" : ""),
+            "mage" => $"スキル効果 {Increase(Data.MageSkill[level])}",
+            "wind" => $"行動速度 {Increase(Data.WindSpeed[level])}" + (level == 2 ? "、開幕に即行動" : ""),
+            _ => $"収入 ＋{Data.RichIncome[level]} コイン" + (level >= 2 ? $"、所持金に応じて攻撃力 最大＋{Data.RichAttackCap * (level == 3 ? 2 : 1):P0}" : "")
+        };
+        var lines = Data.Thresholds[key].Select((required, index) => $"{required}体：{Effect(index + 1)}");
+        return $"現在 {count}体：" + (tier == 0 ? "未発動" : Effect(tier)) + "\n\n" + string.Join("\n", lines);
+    }
+
     void Stage()
     {
         bool battle = ShowingBattle;
@@ -477,6 +489,15 @@ public partial class GameWindow : Window
     }
     void UtilityDialog()
     {
+        if (dialog is not null && dialog.StartsWith("trait:"))
+        {
+            string key = dialog["trait:".Length..];
+            var counts = game.Counts(game.S.Board);
+            var traitPanel = Modal(Data.Traits[key], "絆の効果", 620, 390);
+            traitPanel.Children.Add(Label(TraitEffects(key, counts[key], game.Tier(key, counts)), 20, White));
+            traitPanel.Children.Add(Btn("閉じる  [Esc]", () => SetDialog(null)));
+            return;
+        }
         if (dialog == "compare") { ComparisonDialog(); return; }
         var panel = Modal(dialog == "help" ? "遊び方" : dialog == "report" ? "戦闘レポート" : dialog == "restart" ? "新しいゲーム" : "設定", "", 820, 590);
         if (dialog == "help")
