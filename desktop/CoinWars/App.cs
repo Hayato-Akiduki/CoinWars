@@ -434,11 +434,22 @@ public partial class GameWindow : Window
     void EndDialog()
     {
         bool win = game.S.Hp > 0 && game.S.Results.LastOrDefault() == "win";
-        var panel = Modal(win ? "TRIUMPH" : "GAME OVER", win ? "全20ラウンド制覇" : "次の投資が、新たな勝機になる。", 720, 420);
+        int? challenge = game.S.ChallengeNumber;
+        var panel = Modal(win ? "TRIUMPH" : "GAME OVER", win ? "全20ラウンド制覇" : "次の投資が、新たな勝機になる。", 720, challenge.HasValue ? 480 : 420);
         panel.Children.Add(Label($"到達 {game.S.Round} ラウンド     HP {game.S.Hp}     コイン {game.S.Gold}", 22, White));
         panel.Children.Add(Label($"自己ベスト R{game.S.BestRound} / クリア {game.S.Clears}回", 15, Muted));
-        if(game.S.ChallengeNumber is int seed)panel.Children.Add(Label($"チャレンジ番号 {seed}",20,Gold));
-        var next = Btn("もう一度挑戦する", Restart, true, true); next.Margin = new Thickness(80,40,80,0); next.Height = 55; panel.Children.Add(next);
+        if (challenge is int seed)
+        {
+            panel.Children.Add(Label($"チャレンジ番号 {seed}", 20, Gold));
+            var retry = Btn("同じ番号で再挑戦", () => RestartWith(seed), true, true);
+            retry.Margin = new Thickness(80, 24, 80, 0);
+            retry.Height = 55;
+            panel.Children.Add(retry);
+        }
+        var next = Btn(challenge.HasValue ? "通常プレイを始める" : "もう一度挑戦する", Restart, true, !challenge.HasValue);
+        next.Margin = new Thickness(80, challenge.HasValue ? 12 : 40, 80, 0);
+        next.Height = 55;
+        panel.Children.Add(next);
     }
     StackPanel Modal(string title, string subtitle, double width, double height)
     {
@@ -490,7 +501,7 @@ public partial class GameWindow : Window
             number.TextChanged+=(sender,args)=>challengeStart.IsEnabled=Planning && int.TryParse(number.Text,System.Globalization.NumberStyles.None,null,out _);
             panel.Children.Add(challengeStart);
             panel.Children.Add(Btn("最初から", () => SetDialog("restart"),game.S.Phase!="battle"&&!resultPending));
-            panel.Children.Add(Label($"記録：{game.S.Plays}回挑戦 / {game.S.Clears}回クリア\n準備中・イベント選択中は自動保存します。",16,Muted));
+            panel.Children.Add(Label($"記録：{game.S.Plays}回挑戦 / {game.S.Clears}回クリア\n準備中・イベント選択中は自動保存します。\n戦闘中に終了すると、そのラウンドの準備画面から再開します。",16,Muted));
         }
         var close=Btn("閉じる  [Esc]",()=>SetDialog(null));close.Margin=new Thickness(0,24,0,0);close.Height=42;panel.Children.Add(close);
     }
