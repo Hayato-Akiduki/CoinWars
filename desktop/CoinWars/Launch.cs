@@ -315,7 +315,8 @@ public partial class GameWindow
             var card = Plate("#E3222C42", "#596680");
             card.Margin = new Thickness(0, 0, 0, 6);
             card.Padding = new Thickness(12, 8, 12, 8);
-            card.Child = Label($"{index + 1}位   {score.Points:N0} pt\n{result}  /  HP {score.Hp}  /  {mode}", 16, index == 0 ? Gold : White);
+            var (place, tied) = ScoreRanking.Position(scores, score);
+            card.Child = Label($"{RankText(place, tied)}   {score.Points:N0} pt\n{result}  /  HP {score.Hp}  /  {mode}", 16, place == 1 ? Gold : White);
             panel.Children.Add(card);
         }
 

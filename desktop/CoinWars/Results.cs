@@ -24,7 +24,7 @@ public partial class GameWindow
 
         var score = abandoned ? null : state.FinalScore();
         panel.Children.Add(StatTiles(state.Round, state.Hp, state.Gold, score?.Points));
-        if (score != null && RankingLine(state, score) is TextBlock rank) panel.Children.Add(rank);
+        if (score != null && RankingLine(state, score, run?.PersonalBestUpdated == true) is TextBlock rank) panel.Children.Add(rank);
 
         var battles = run?.Battles ?? state.BattleSaves;
         panel.Children.Add(Section("ラウンド推移"));
@@ -63,14 +63,14 @@ public partial class GameWindow
         return button;
     }
 
-    static TextBlock? RankingLine(State state, ScoreEntry score)
+    static string RankText(int place, bool tied) => $"{(tied ? "同率" : "")}{place}位";
+
+    static TextBlock? RankingLine(State state, ScoreEntry score, bool personalBestUpdated)
     {
-        var ranked = state.Scores.Where(entry => entry.Difficulty == score.Difficulty).ToList();
-        if (!ranked.Contains(score)) return null;
-        int rank = ranked.Count(entry => entry.Points > score.Points) + 1;
-        string text = rank == 1
-            ? $"★ {DifficultyName(score.Difficulty)}のランキング 1位   自己最高スコア"
-            : $"{DifficultyName(score.Difficulty)}のランキング {rank}位";
+        if (!state.Scores.Contains(score) && !state.Scores.Contains(score with { Attempt = null })) return null;
+        var (rank, tied) = ScoreRanking.Position(state.Scores, score);
+        string text = $"{DifficultyName(score.Difficulty)}のランキング {RankText(rank, tied)}";
+        if (personalBestUpdated) text += "   ★ 自己ベスト更新";
         var label = Label(text, 17, Gold, rank == 1);
         label.Margin = new Thickness(5, 10, 0, 0);
         return label;

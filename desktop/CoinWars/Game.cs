@@ -10,15 +10,31 @@ public class Unit {
 public record Offer(string Kind,string Title,string Description,string Argument="");
 public enum Difficulty { Standard, Easy, Hard }
 
-public record ScoreEntry(int Round, int Hp, bool Cleared, int? ChallengeNumber, Difficulty Difficulty = Difficulty.Standard)
+public record ScoreEntry(int Round, int Hp, bool Cleared, int? ChallengeNumber, Difficulty Difficulty = Difficulty.Standard, int? Attempt = null)
 {
  [System.Text.Json.Serialization.JsonIgnore]
  public int Points => Round * 1000 + Hp + (Cleared ? 1000 : 0);
 }
+public static class ScoreRanking
+{
+ public static (int Place, bool Tied) Position(IEnumerable<ScoreEntry> scores, ScoreEntry score)
+ {
+  var peers = scores.Where(entry => entry.Difficulty == score.Difficulty);
+  return (1 + peers.Count(entry => entry.Points > score.Points), peers.Count(entry => entry.Points == score.Points) > 1);
+ }
+
+ public static bool BeatsPersonalBest(IEnumerable<ScoreEntry> scores, ScoreEntry score)
+ {
+  var previousBest = scores.Where(entry => entry.Difficulty == score.Difficulty)
+      .Select(entry => (int?)entry.Points).Max();
+  return previousBest.HasValue && score.Points > previousBest.Value;
+ }
+}
+
 public record BattleParticipant(string Name, int Star, double Damage, double Hp);
 public record BattleReport(BattleParticipant[] Allies, string? FirstFallen, BattleParticipant[] SurvivingEnemies);
 public record BattleSave(int Round, string Outcome, int? Hp, int? Gold, int? HpBefore = null, BattleReport? Report = null);
-public record RunResult(int Attempt, string Outcome, int Round, int Hp, int Gold, int? ChallengeNumber, List<BattleSave> Battles, Difficulty Difficulty = Difficulty.Standard);
+public record RunResult(int Attempt, string Outcome, int Round, int Hp, int Gold, int? ChallengeNumber, List<BattleSave> Battles, Difficulty Difficulty = Difficulty.Standard, bool PersonalBestUpdated = false);
 public class State {
  public Difficulty Difficulty {get;set;}
  public int? ChallengeNumber {get;set;}
@@ -28,7 +44,7 @@ public class State {
  public List<ScoreEntry> Scores {get;set;}=[];
  public List<BattleSave> BattleSaves {get;set;}=[];
  public List<RunResult> RunResults {get;set;}=[];
- public ScoreEntry FinalScore() => new(Round, Hp, Round == 20 && Hp > 0 && Results.LastOrDefault() == "win", ChallengeNumber, Difficulty);
+ public ScoreEntry FinalScore() => new(Round, Hp, Round == 20 && Hp > 0 && Results.LastOrDefault() == "win", ChallengeNumber, Difficulty, Plays);
  public int Hp {get;set;}=100; public int Gold {get;set;}=6; public int Level {get;set;}=1; public int Exp {get;set;}
  public int Round {get;set;}=1; public int Streak {get;set;} public int InterestCap {get;set;}=5; public int Debt {get;set;}
  public bool Locked {get;set;} public string Phase {get;set;}="plan";
@@ -252,10 +268,11 @@ public class Game {
   if(S.Hp<=0||S.Round==20){
    var score = S.FinalScore();
    if(score.Cleared){S.Clears++;S.BestClearHp=Math.Max(S.BestClearHp,S.Hp);}
+   bool personalBestUpdated = ScoreRanking.BeatsPersonalBest(S.Scores, score);
    S.Scores = S.Scores.Append(score).GroupBy(entry => entry.Difficulty)
        .SelectMany(group => group.OrderByDescending(entry => entry.Points).Take(10)).ToList();
    S.BattleSaves.Add(new(S.Round, result, S.Hp, S.Gold, hpBefore, report));
-   S.RunResults.Add(new(S.Plays, score.Cleared ? "clear" : "defeat", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves], S.Difficulty));
+   S.RunResults.Add(new(S.Plays, score.Cleared ? "clear" : "defeat", S.Round, S.Hp, S.Gold, S.ChallengeNumber, [..S.BattleSaves], S.Difficulty, personalBestUpdated));
    S.Phase="over";Log(score.Cleared?"全20ラウンド制覇！":"ゲーム終了");return;
   }
   int income=Income(win);S.Gold=Math.Max(0,S.Gold+income);if(S.Debt>0)S.Debt--;Log($"収入 {income:+0;-0;0} コイン");

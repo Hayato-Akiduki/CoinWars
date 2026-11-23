@@ -144,10 +144,22 @@ try{
  ranked.MakeEnemy();
  ranked.Start();while(ranked.S.Phase=="battle")ranked.Step();
  var finalScore=ranked.S.FinalScore();
+ var equalScore = finalScore with { Attempt = 99 };
+ var lowerScore = new ScoreEntry(1, 0, false, null);
+ var otherDifficulty = finalScore with { Difficulty = Difficulty.Hard, Round = 20, Hp = 100, Cleared = true };
+ ScoreEntry[] tiedScores = [finalScore, equalScore, lowerScore, otherDifficulty];
+ Check(ScoreRanking.Position(tiedScores, finalScore) == (1, true) &&
+       ScoreRanking.Position(tiedScores, lowerScore) == (3, false), "tied scores share a rank and skip the next place within each difficulty");
+ Check(!ScoreRanking.BeatsPersonalBest([equalScore], finalScore) &&
+       !ScoreRanking.BeatsPersonalBest([otherDifficulty], finalScore) &&
+       ScoreRanking.BeatsPersonalBest([lowerScore, otherDifficulty], finalScore),
+       "personal best update requires a strictly higher score in the same difficulty");
  Check(ranked.S.Scores.Count==10&&ranked.S.Scores[0]==finalScore&&ranked.S.Scores[^1].Round==2,"finished run enters ranked top ten and drops lowest score");
  string rankingPath=Path.Combine(damagedDir,"ranking.json");
  Saves.Write(ranked.S,rankingPath);
- ranked.S=Saves.Read(rankingPath)!;ranked.New();
+ ranked.S=Saves.Read(rankingPath)!;
+ Check(ranked.S.RunResults.Single().PersonalBestUpdated, "personal best update survives save and reload");
+ ranked.New();
  Check(ranked.S.Scores.Count==10&&ranked.S.Scores[0].ChallengeNumber==123,"leaderboard survives save and a new run");
  string legacyPath=Path.Combine(damagedDir,"legacy.json");
  var savedJson=System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(rankingPath))!.AsObject();
