@@ -182,4 +182,57 @@ challengeA.Roll();resumedChallenge.Roll();
 Check(challengeA.S.Shop.SequenceEqual(resumedChallenge.S.Shop),"challenge draws resume after reload");
 challengeA.Start();while(challengeA.S.Phase=="battle")challengeA.Step();
 Check(challengeA.S.Log.Any(entry=>entry.StartsWith("最初に倒れた味方：")),"battle report records first casualty or no casualties");
+
+byte[] installerBytes = [0x4d, 0x5a, 0x01, 0x02];
+string installerHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(installerBytes));
+string installerName = "CoinWars-Setup-v1.10.0.exe";
+string ReleaseJson(string? digest, bool prerelease = false) => JsonSerializer.Serialize(new
+{
+ tag_name = "v1.10.0", draft = false, prerelease,
+ assets = new[] { new { name = installerName, size = installerBytes.Length, digest } }
+});
+string releaseJson = ReleaseJson($"sha256:{installerHash}");
+byte[] downloadBody = installerBytes;
+Uri? downloadUrl = null;
+using var updateHttp = new HttpClient(new UpdateHttpHandler(uri =>
+{
+ if (uri.Host == "api.github.com") return new StringContent(releaseJson);
+ downloadUrl = uri;
+ return new ByteArrayContent(downloadBody);
+}));
+var updater = new ReleaseUpdates(updateHttp);
+var update = await updater.CheckAsync(new Version(1, 9, 0, 0), default);
+Check(update?.Version == new Version(1, 10, 0), "updater compares release versions numerically");
+Check(await updater.CheckAsync(new Version(1, 10, 0, 0), default) == null &&
+      await updater.CheckAsync(new Version(2, 0, 0, 0), default) == null, "updater skips current and older versions");
+releaseJson = ReleaseJson($"sha256:{installerHash}", prerelease: true);
+Check(await updater.CheckAsync(new Version(1, 9, 0), default) == null, "updater skips prereleases");
+releaseJson = ReleaseJson(null);
+bool missingDigestRejected = false;
+try { await updater.CheckAsync(new Version(1, 9, 0), default); }
+catch (InvalidDataException) { missingDigestRejected = true; }
+Check(missingDigestRejected, "updater rejects an installer without a published SHA-256");
+
+string updateTestDir = Path.Combine(Path.GetTempPath(), "coinwars-update-check-" + Guid.NewGuid());
+Directory.CreateDirectory(updateTestDir);
+try
+{
+ string verified = Path.Combine(updateTestDir, "valid.download");
+ await updater.DownloadAsync(update!, verified, default);
+ Check(File.ReadAllBytes(verified).SequenceEqual(installerBytes) &&
+       downloadUrl?.AbsoluteUri == $"https://github.com/Hayato-Akiduki/CoinWars/releases/download/v1.10.0/{installerName}",
+       "updater verifies bytes from the expected release asset");
+ downloadBody = [0x4d, 0x5a, 0xff, 0xff];
+ bool tamperedRejected = false;
+ try { await updater.DownloadAsync(update!, Path.Combine(updateTestDir, "bad.download"), default); }
+ catch (InvalidDataException) { tamperedRejected = true; }
+ Check(tamperedRejected, "updater rejects an installer whose bytes do not match the published SHA-256");
+}
+finally { Directory.Delete(updateTestDir, true); }
 Console.WriteLine($"{checks} checks passed.");
+
+sealed class UpdateHttpHandler(Func<Uri, HttpContent> respond) : HttpMessageHandler
+{
+ protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+     Task.FromResult(new HttpResponseMessage { Content = respond(request.RequestUri!) });
+}

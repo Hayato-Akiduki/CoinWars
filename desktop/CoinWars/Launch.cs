@@ -96,6 +96,9 @@ public partial class GameWindow
         menu.Children.Add(LaunchButton("セーブ一覧", () => ShowSaveHistory(hasSave)));
         menu.Children.Add(LaunchButton("リザルト一覧", () => ShowRunResults(hasSave)));
         menu.Children.Add(LaunchButton("スコアランキング", () => ShowScores(hasSave)));
+        var updateButton = LaunchButton("ゲームの更新", () => ShowUpdates(hasSave));
+        menu.Children.Add(updateButton);
+        SetUpdateButtonLabel(updateButton);
         menu.Children.Add(LaunchButton("終了", Close));
 
         launchHost.Children.Add(new ScrollViewer

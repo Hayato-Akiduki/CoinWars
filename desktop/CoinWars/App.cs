@@ -72,6 +72,7 @@ public partial class GameWindow : Window
         SetSpeed();
         timer.Tick += (_, _) => Tick();
         Closing += (_, _) => { transitionGeneration++; timer.Stop(); ClearPresentation(); Persist(); };
+        Closed += (_, _) => updateLifetime.Cancel();
         PreviewKeyDown += OnKey;
         MouseRightButtonUp += (_,e) => { if(dialog!=null)SetDialog(null);else if(enteredGame && Planning){selected=null;selectedItem=null;Render();}e.Handled=true; };
         SizeChanged += (_,_) => { if(enteredGame && !ShowingBattle&&!animating&&CompactLayout!=WantsCompactLayout)Render(); };
