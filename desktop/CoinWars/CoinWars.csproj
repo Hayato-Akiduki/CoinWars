@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
- <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><ApplicationIcon>Assets/CoinWars.ico</ApplicationIcon><Version>1.1.1</Version><AssemblyVersion>1.1.1.0</AssemblyVersion><FileVersion>1.1.1.0</FileVersion></PropertyGroup>
+ <PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0-windows</TargetFramework><UseWPF>true</UseWPF><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><ApplicationIcon>Assets/CoinWars.ico</ApplicationIcon><Version>1.2.0</Version><AssemblyVersion>1.2.0.0</AssemblyVersion><FileVersion>1.2.0.0</FileVersion></PropertyGroup>
  <ItemGroup><Resource Include="Assets/CoinWars.ico" /><Content Include="Licenses/*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" /></ItemGroup>
  <ItemGroup><Content Include="../../img/*.png" Link="img/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" /><Content Include="units.json" CopyToOutputDirectory="PreserveNewest" /><Content Include="Assets/*.png" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>
